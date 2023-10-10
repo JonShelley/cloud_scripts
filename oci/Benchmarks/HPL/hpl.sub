@@ -1,0 +1,42 @@
+#!/bin/bash
+#SBATCH -t 00:20:00
+#SBATCH --ntasks=8
+#SBATCH --ntasks-per-node=8
+#SBATCH --mem=0
+#SBATCH --gpus-per-node=8
+##SBATCH -o logs/%x_%j.log
+#SBATCH --exclusive
+
+env | grep -i slurm
+env | grep -i log
+
+CONT='nvcr.io#nvidia/hpc-benchmarks:23.5'
+#CONT="/mnt/resource_nvme/nvidia+hpc-benchmarks+21.4-hpl.sqsh"
+MOUNT=''
+echo "Running on hosts: $(echo $(scontrol show hostname))"
+
+export OMPI_MCA_pml=ucx
+export OMPI_MCA_btl=^openib,smcuda
+export UCX_NET_DEVICES="=mlx5_0:mlx5_1:mlx5_3:mlx5_4:mlx5_5:mlx5_6:mlx5_7:mlx5_8:mlx5_9:mlx5_10:mlx5_12:mlx5_13:mlx5_14:mlx5_15:mlx5_16:mlx5_17"
+
+CPU_AFFINITY="0-13:14-27:28-41:42-55:56-69:70-83:84-97:98-111"
+GPU_AFFINITY="0:1:2:3:4:5:6:7"
+MEM_AFFINITY="0:0:0:0:1:1:1:1"
+#UCX_AFFINITY="mlx5_0:mlx5_1:mlx5_3:mlx5_4:mlx5_5:mlx5_6:mlx5_7:mlx5_8:mlx5_9:mlx5_10:mlx5_12:mlx5_13:mlx5_14:mlx5_15:mlx5_16:mlx5_17"
+DAT="/workspace/hpl-linux-x86_64/sample-dat/HPL-dgx-a100-${SLURM_JOB_NUM_NODES}N.dat"
+
+CMD="hpl.sh --cpu-affinity ${CPU_AFFINITY} --cpu-cores-per-rank 14 --gpu-affinity ${GPU_AFFINITY} --mem-affinity ${MEM_AFFINITY} --dat ${DAT}"
+#CMD="hpl.sh --cpu-affinity ${CPU_AFFINITY} --cpu-cores-per-rank 14 --gpu-affinity ${GPU_AFFINITY} --mem-affinity ${MEM_AFFINITY} --ucx-affinity ${UCX_AFFINITY} --dat ${DAT}"
+
+echo "CMD: $CMD"
+
+export OMPI_MCA_pml_base_verbose=100
+srun \
+    --ntasks-per-node=8 \
+    --ntasks=8 \
+    --whole \
+    --gpus-per-node=8 \
+    --container-name=hpl \
+    --container-image="${CONT}" \
+    bash -c "${CMD}"
+#    --container-mounts="${MOUNT}" \
