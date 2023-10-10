@@ -1,0 +1,6 @@
+#!/bin/bash
+#SBATCH -t 00:20:00
+#SBATCH --ntasks-per-node=8
+#SBATCH -o logs/%x_%j.log
+#SBATCH --gpus-per-node=8
+/home/ubuntu/slurm-ngc/nccl/scripts/nccl.sh
