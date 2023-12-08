@@ -9,14 +9,9 @@ import re
 import argparse
 import socket
 
-# expect to not have any RDMA link flaps within a given time interval (in hours)
-RDMA_FLAPPING_LINK_TEST = "RDMA link failures detected"
-INTERFACES = ["enp12s0f0", "enp12s0f1", "enp42s0f0", "enp42s0f1", "enp65s0f0", "enp65s0f1", "enp88s0f0", "enp88s0f1", "enp134s0f0", "enp134s0f1", "enp165s0f0", "enp165s0f1", "enp189s0f0", "enp189s0f1", "enp213s0f0", "enp213s0f1"]
-
-
 def parse_args():
     parser = argparse.ArgumentParser(description="Process RDMA link flapping data")
-    parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Set the logging level")
+    parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="ERROR", help="Set the logging level")
     return parser.parse_args()
 
 def setup_logging(log_level):
@@ -30,9 +25,6 @@ def setup_logging(log_level):
     hostname = socket.gethostname()
     logging.info(f"Hostname: {hostname}")
 
-def die(exit_code, message):
-    logging.error(message)
-    sys.exit(exit_code)
 
 def get_rdma_link_failures(log_file):
 
@@ -69,48 +61,55 @@ def get_rdma_link_failures(log_file):
 def process_rdma_link_flapping(link_data, time_interval_hours):
     status = 0
     if len(link_data) >= 1:
+        current_date = datetime.datetime.now()
+        current_date_str = current_date.strftime("%b %d %H:%M:%S")
+        current_date_sec = int(time.mktime(datetime.datetime.strptime(current_date_str, "%b %d %H:%M:%S").timetuple()))
+        
+        link_failures = False
         for interface in link_data:
-            logging.info(f"{len(link_data[interface]['failures'])} RDMA link failure entries in /var/log/messages for interface: {interface}")
-            
-            current_date = datetime.datetime.now()
-            current_date_str = current_date.strftime("%b %d %H:%M:%S")
-            
+            if len(link_data[interface]["failures"]) > 0:
+                link_failures = True
+                logging.error(f"{interface}: {len(link_data[interface]['failures'])} RDMA link failure entries in messages or syslog")        
             last_date_failure_str = None
-            last_date_down_str = None
 
             if len(link_data[interface]["failures"]) > 0:
                 last_date_failure_str = link_data[interface]["failures"][-1]
                 last_date_failure_sec = int(time.mktime(datetime.datetime.strptime(last_date_failure_str, "%b %d %H:%M:%S").timetuple()))
             
-            if len(link_data[interface]["link_down"]) > 0:
-                last_date_down_str = link_data[interface]["link_down"][-1]
-                last_date_down_sec = int(time.mktime(datetime.datetime.strptime(last_date_down_str, "%b %d %H:%M:%S").timetuple()))
-
-            
-            current_date_sec = int(time.mktime(datetime.datetime.strptime(current_date_str, "%b %d %H:%M:%S").timetuple()))
-            
             if last_date_failure_str != None and last_date_failure_str != current_date_str:
                 diff_secs = current_date_sec - last_date_failure_sec
-                logging.info(f"RDMA link ({interface}) failed {diff_secs} seconds ago")
                 diff_hours = diff_secs // (60 * 60)
                 logging.info(f"RDMA link ({interface}) failed  {diff_hours} hours ago")
 
                 if diff_hours < time_interval_hours:
-                    logging.error(f"{RDMA_FLAPPING_LINK_TEST}, multiple RDMA link flapping events within {time_interval_hours} hours ({current_date_str}, {last_date_failure_str})")
+                    logging.error(f"{interface}: one or more RDMA link flapping events within {time_interval_hours} hours ({current_date_str}, {last_date_failure_str})")
                     status = -1
+        if link_failures:
+            logging.error("########################################")
+        for interface in link_data:
+            if len(link_data[interface]["link_down"]) > 0:
+                logging.error(f"{interface}: {len(link_data[interface]['failures'])} RDMA link down entries in messages or syslog")
+            last_date_down_str = None
+
+            if len(link_data[interface]["link_down"]) > 0:
+                    last_date_down_str = link_data[interface]["link_down"][-1]
+                    last_date_down_sec = int(time.mktime(datetime.datetime.strptime(last_date_down_str, "%b %d %H:%M:%S").timetuple()))
+
+
             if last_date_down_str != None and last_date_down_str != current_date_str:
                 diff_secs = current_date_sec - last_date_down_sec
-                logging.info(f"RDMA link ({interface}) down {diff_secs} seconds ago")
                 diff_hours = diff_secs // (60 * 60)
                 logging.info(f"RDMA link ({interface}) down  {diff_hours} hours ago")
 
                 if diff_hours < time_interval_hours:
-                    logging.error(f"{RDMA_FLAPPING_LINK_TEST}, multiple RDMA link down events within {time_interval_hours} hours ({current_date_str}, {last_date_down_str})")
+                    logging.error(f"{interface}, one or more RDMA link down events within {time_interval_hours} hours ({current_date_str}, {last_date_down_str})")
                     status = -2
         if status == -1:
-            die(-1, f"{process_rdma_link_flapping.__name__}: {RDMA_FLAPPING_LINK_TEST}, multiple RDMA link flapping events within the past {time_interval_hours} hours")
-        elif status == -2:
-            die(-2, f"{process_rdma_link_flapping.__name__}: {RDMA_FLAPPING_LINK_TEST}, multiple RDMA link down events within the past {time_interval_hours} hours")
+            logging.error(f"{process_rdma_link_flapping.__name__}: one or more RDMA link flapping events within the past {time_interval_hours} hours")
+        if status == -2:
+            logging.error(f"{process_rdma_link_flapping.__name__}: one or more RDMA link down events within the past {time_interval_hours} hours")
+        if status < 0:
+            sys.exit(-1)    
     else:
         logging.info("No RDMA link failures entry in /var/log/messages")
         return 0
