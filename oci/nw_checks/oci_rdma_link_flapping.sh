@@ -36,11 +36,10 @@ def die(exit_code, message):
 
 def get_rdma_link_failures(log_file):
 
-    pattern = r"(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+\S+\s+wpa_supplicant(?:\[\d+\])?: (\w+): CTRL-EVENT-EAP-FAILURE EAP authentication failed"
-
+    pattern  = r"(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+\S+\s+wpa_supplicant(?:\[\d+\])?: (\w+): CTRL-EVENT-EAP-FAILURE EAP authentication failed"
+    pattern2 = r"(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+\S+\s+kernel: (?:\[\d+\.\d+\]\s)?mlx5_core \S+ (\w+): Link down"
+    
     link_data = {}
-    if log_file == "/var/log/syslog":
-        pattern2 = r"(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+\S+\s+kernel: \[\d+\.\d+\] mlx5_core \S+ (\w+): Link down"
     with open(log_file, "r") as f:
         for line in f:
             match = re.search(pattern, line)
@@ -53,17 +52,17 @@ def get_rdma_link_failures(log_file):
                 else:
                     link_data[interface]["failures"].append(time_str)
 
-            if log_file == "/var/log/syslog":
-                match = re.search(pattern2, line)
-                if match:
-                    time_str = match.group(1)
-                    interface = match.group(2)
-                    logging.debug(f"time: {time_str}, interface: {interface}")
-                    if interface not in link_data:
-                        link_data[interface] = {"failures": [], "link_down": [time_str]}
-                    else:
-                        link_data[interface]["link_down"].append(time_str)
-                        
+            
+            match = re.search(pattern2, line)
+            if match:
+                time_str = match.group(1)
+                interface = match.group(2)
+                logging.debug(f"time: {time_str}, interface: {interface}")
+                if interface not in link_data:
+                    link_data[interface] = {"failures": [], "link_down": [time_str]}
+                else:
+                    link_data[interface]["link_down"].append(time_str)
+                    
     logging.info("Link Data: {}".format(link_data))
     return link_data
 
