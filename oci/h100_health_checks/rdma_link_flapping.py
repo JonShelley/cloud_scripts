@@ -56,6 +56,15 @@ class LinkFlappingTest:
         return self.link_data
 
     def process_rdma_link_flapping(self):
+
+
+        # Get the time stamp when the host came up
+        bootup_time = subprocess.run(['uptime', '-s'], stdout=subprocess.PIPE)
+        bootup_time = bootup_time.stdout.decode('utf-8').strip()
+        bootup_time_str = datetime.datetime.strptime(bootup_time, "%Y-%m-%d %H:%M:%S")
+        bootup_time_sec = int(time.mktime(bootup_time_str.timetuple()))
+        bootup_time_grace_period = bootup_time_sec + 1800
+
         status = 0
         if len(self.link_data) >= 0:
             current_date = datetime.datetime.now()
@@ -79,11 +88,11 @@ class LinkFlappingTest:
                     diff_hours = diff_secs // (60 * 60)
                     logger.debug(f"RDMA link ({interface}) failed  {diff_hours} hours ago")
 
-                    if diff_hours < self.time_interval:
+                    if diff_hours < self.time_interval and current_date_sec > bootup_time_grace_period:
                         logger.error(f"{interface}: one or more RDMA link flapping events within {self.time_interval} hours. Last flapping event: {last_date_failure_str})")
                         status = -1
-            if link_failures:
-                logger.error("########################################")
+            #if link_failures:
+            #    logger.error("########################################")
             for interface in self.link_data:
                 if len(self.link_data[interface]["link_down"]) > 0:
                     logger.debug(f"{interface}: {len(self.link_data[interface]['failures'])} RDMA link down entries in {self.log_file}")
@@ -100,13 +109,13 @@ class LinkFlappingTest:
                     diff_hours = diff_secs // (60 * 60)
                     logger.debug(f"RDMA link ({interface}) down  {diff_hours} hours ago")
 
-                    if diff_hours < self.time_interval:
+                    if diff_hours < self.time_interval and current_date_sec > bootup_time_grace_period:
                         logger.error(f"{interface}, one or more RDMA link down events within {self.time_interval} hours. Last link down event: {last_date_down_str}")
                         status = -2
             if status == -1:
-                logger.error(f"One or more RDMA link flapping events within the past {self.time_interval} hours")
+                logger.debug(f"One or more RDMA link flapping events within the past {self.time_interval} hours")
             if status == -2:
-                logger.error(f"One or more RDMA link down events within the past {self.time_interval} hours")
+                logger.debug(f"One or more RDMA link down events within the past {self.time_interval} hours")
 
         else:
             logger.info("No RDMA link failures entry in /var/log/messages")

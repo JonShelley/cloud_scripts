@@ -59,6 +59,7 @@ def get_oca_version():
 def check_rttcc_status():
     devices = ["mlx5_0", "mlx5_1", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8", "mlx5_9", "mlx5_10", "mlx5_12", "mlx5_13", "mlx5_14", "mlx5_15", "mlx5_16", "mlx5_17"]
     status = "disabled"
+    status_dict = {"devices": {}}
     for device in devices:
         command = ['sudo', 'mlxreg', '-d', device, '-y', '--set', 'cmd_type=3', '--reg_name=PPCC', '--indexes=local_port=1,pnat=0,lp_msb=0,algo_slot=0,algo_param_index=0']
         result = subprocess.run(command, stdout=subprocess.PIPE)
@@ -67,12 +68,13 @@ def check_rttcc_status():
         for line in filtered_output:
             logger.debug(line)
             if "0x00000001" in line:
-                status = "enabled"
+                status_dict["devices"][device] = "enabled"
     
-    if status == "enabled":
-        logger.error(f"RTTCC status: {status}")
-    else:
-        logger.info(f"RTTCC Disabled: True")
+    for device in status_dict["devices"]:
+        if status_dict["devices"][device] == "enabled":
+            logger.error(f"RTTCC status for {device}: enabled")
+        else:
+            logger.info(f"RTTCC status for {device}: disabled")
     return status
 
 def check_ecc_errors():
