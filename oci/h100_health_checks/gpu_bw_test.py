@@ -7,6 +7,7 @@ import socket
 import time
 import json
 from shared_logging import logger
+import re
 
 
 class BandwidthTest:
@@ -47,6 +48,33 @@ class BandwidthTest:
         logger.debug("Iteration: Device: DtoH : HtoD")
         hostname = socket.gethostname()
         results = {"gpus": {}, "host": hostname}
+
+        # Check if any processes are running on the GPUs before running the test
+        result = subprocess.run(["nvidia-smi", "-q", "-d", "PIDS"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        # Define the regular expression pattern for the GPU ID and the Processes
+        pattern = r'GPU\s(.*)\s+Processes\s+:\s+(.*)'
+
+        # Find all matches in the output
+        matches = re.findall(pattern, output)
+
+        # Initialize an empty dictionary to store the results
+        results = {}
+
+        # For each match, extract the GPU ID and the number of processes
+        total_processes = 0
+        for match in matches:
+            gpu_id, processes = match
+            # If processes is 'None', set it to 0
+            if processes == 'None':
+                processes = 0
+            total_processes += int(processes)
+            results[gpu_id] = processes
+            
+        
+        if total_processes > 0:
+            logger.error("GPU processes are running on the host. Please stop the processes and rerun the test")
+            return
+
         for i in range(iterations):
             for device in range(gpus):
                 os.environ["CUDA_VISIBLE_DEVICES"] = str(device)
