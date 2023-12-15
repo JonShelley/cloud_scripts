@@ -114,7 +114,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Check H100 setup')
     parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Set the logging level default: INFO")
     parser.add_argument('--bw-test', dest='bw_test', default=False, help='Run GPU bandwidth test (default: False)')
-    parser.add_argument('--lf-interval', dest='lf_interval', default=6, help='Link flapping interval with no flapping or link down events (default: 6 (hours))')
+    parser.add_argument('--bw-test-exe', dest='bw_test-exe', help='Location to cuda-sampels bandwidthTest')
+    parser.add_argument('--lf-interval', dest='lf_interval', default=6, type=int, help='Link flapping interval with no flapping or link down events (default: 6 (hours))')
     parser.add_argument('-a','--all', dest='run_all', action='store_true', default=False, help='Run all checks (default: False)')
     args = parser.parse_args()
 
@@ -138,7 +139,10 @@ if __name__ == '__main__':
 
     # Check GPU bandwidth
     if args.bw_test == True or args.run_all == True:
-        bwt = BandwidthTest()
+        if args.bw_test_exe:
+            bwt = BandwidthTest(bw_test_exe=args.bw_test_exe)
+        else:
+            bwt = BandwidthTest()
         bwt.measure_gpu_bw()
         bwt.validate_results()
 
