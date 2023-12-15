@@ -73,8 +73,14 @@ def check_rttcc_status():
     for device in status_dict["devices"]:
         if status_dict["devices"][device] == "enabled":
             logger.error(f"RTTCC status for {device}: enabled")
+            status = "enabled"
         else:
             logger.info(f"RTTCC status for {device}: disabled")
+    if status == "disabled":
+        logger.info(f"RTTCC disabled check: Passed")
+    else:
+        logger.error(f"RTTCC disabled check: Failed")
+        
     return status
 
 def check_ecc_errors():
