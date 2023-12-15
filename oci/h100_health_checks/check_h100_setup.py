@@ -8,34 +8,53 @@ from shared_logging import logger
 from gpu_bw_test import BandwidthTest
 from rdma_link_flapping import LinkFlappingTest
 from xid_checker import XidChecker
+import platform
 
 
 def get_oca_version():
     # Run the shell command
-    result = subprocess.run(['rpm', '-qa'], stdout=subprocess.PIPE)
+    os_name = platform.system()
 
-    # Decode the output from bytes to string
-    output = result.stdout.decode('utf-8')
+    
+    if os_name == 'Linux':
+        try:
+            distro = platform.linux_distribution()[0]
+        except:
+            import distro
+            distro = distro.name()
 
-    # Filter the output for lines containing 'oracle-cloud-agent'
-    filtered_output = [line for line in output.split('\n') if 'oracle-cloud-agent' in line]
+        if 'Ubuntu' in distro:
+            result = subprocess.run(['sudo', 'snap', 'info', 'oracle-cloud-agent'], stdout=subprocess.PIPE)
+            
+            # Decode the output from bytes to string
+            output = result.stdout.decode('utf-8')
 
-    # Define the regular expression pattern for the version
-    pattern = r'\d+\.\d+\.\d+'
+            # Define the regular expression pattern for the version
+            pattern = r'installed:\s+(\d+\.\d+\.\d+)'
+            match = re.search(pattern, output)
+            if match:
+                version = match.group(1)
 
-    # Log the filtered output and capture the version
-    for line in filtered_output:
-        logger.info(line)
-        match = re.search(pattern, line)
-        if match:
-            version = match.group()
-            if version < "1.37.2":
-                logger.error(f"Oracle Cloud Agent: {version} needs to be updated to 1.37.2 or higher")
-            else:
-                logger.info(f"Oracle Cloud Agent: {version}")
+        elif 'Oracle' in distro:
+            result = subprocess.run(['rpm', '-qa'], stdout=subprocess.PIPE)
+        
+            # Decode the output from bytes to string
+            output = result.stdout.decode('utf-8')
 
-    # Return the version
-    return version
+            # Define the regular expression pattern for the version
+            pattern = r'oracle-cloud-agent-(\d+\.\d+\.\d+)'
+            match = re.search(pattern, output)
+            if match:
+                version = match.group(1)
+
+   
+        if version < "1.37.2":
+            logger.error(f"Oracle Cloud Agent: {version} needs to be updated to 1.37.2 or higher")
+        else:
+            logger.info(f"Oracle Cloud Agent: {version}")
+
+        # Return the version
+        return version
 
 def check_rttcc_status():
     devices = ["mlx5_0", "mlx5_1", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8", "mlx5_9", "mlx5_10", "mlx5_12", "mlx5_13", "mlx5_14", "mlx5_15", "mlx5_16", "mlx5_17"]
@@ -52,6 +71,8 @@ def check_rttcc_status():
     
     if status == "enabled":
         logger.error(f"RTTCC status: {status}")
+    else:
+        logger.info(f"RTTCC Disabled: True")
     return status
 
 def check_ecc_errors():
