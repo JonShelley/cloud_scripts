@@ -80,7 +80,7 @@ def check_rttcc_status():
         logger.info(f"RTTCC disabled check: Passed")
     else:
         logger.error(f"RTTCC disabled check: Failed")
-        
+
     return status
 
 def check_ecc_errors():
@@ -116,10 +116,16 @@ def check_rdma_link_status():
     for device in devices:
         # Run the mlxlink command
         command = ['sudo', 'mlxlink', '-d', device, '-m', '-c', '-e']
-        result = subprocess.run(command, stdout=subprocess.PIPE)
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         # Decode the output from bytes to string
         output = result.stdout.decode('utf-8')
+        stderr = result.stderr.decode('utf-8')
+
+        if stderr and stderr.find("-E-") != -1:
+            logger.error(f"{device}: {stderr}")
+            status = "False"
+            continue
 
         # Find the line containing "Recommendation"
         recommendation_line = re.search(r'Recommendation.*', output)
