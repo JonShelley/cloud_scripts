@@ -79,14 +79,13 @@ class XidChecker:
                     else:
                         tmp_dict[match] = tmp_dict[match] + 1
                 for x in tmp_dict.keys():
-                    logger.info(f"{XID} : count: {tmp_dict[x]}, {XID_EC[XID]['description']} - PCI: {x}")
-                    #sys.exit(f"{check_gpu_xid.__name__}: {GPU_XID_TEST}: {XID} : {XID_EC[XID]['description']} - PCI: {match}")
+                    logger.info(f"{XID} : count: {tmp_dict[x]}, {self.XID_EC[XID]['description']} - PCI: {x}")
                 if not matches:
                     logger.debug(f"No GPU Xid {XID} error found in dmesg")
                 if tmp_dict != {}:
                     if XID_EC[XID]['severity'] == "Critical":
                         status = "Fail"
-                    self.results[XID] = {"results": tmp_dict, "description": XID_EC[XID]['description']}
+                    self.results[XID] = {"results": tmp_dict, "description": self.XID_EC[XID]['description']}
         else:
             logger.info("Xid Check: Passed")
         return {"status": status, "results": self.results}
