@@ -55,7 +55,7 @@ class BandwidthTest:
         pattern = r'GPU\s(.*)\s+Processes\s+:\s+(.*)'
 
         # Find all matches in the output
-        matches = re.findall(pattern, result)
+        matches = re.findall(pattern, result.stdout)
 
         # Initialize an empty dictionary to store the results
         pid_results = {}
