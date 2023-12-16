@@ -55,10 +55,10 @@ class BandwidthTest:
         pattern = r'GPU\s(.*)\s+Processes\s+:\s+(.*)'
 
         # Find all matches in the output
-        matches = re.findall(pattern, output)
+        matches = re.findall(pattern, result)
 
         # Initialize an empty dictionary to store the results
-        results = {}
+        pid_results = {}
 
         # For each match, extract the GPU ID and the number of processes
         total_processes = 0
@@ -68,7 +68,7 @@ class BandwidthTest:
             if processes == 'None':
                 processes = 0
             total_processes += int(processes)
-            results[gpu_id] = processes
+            pid_results[gpu_id] = processes
             
         
         if total_processes > 0:
