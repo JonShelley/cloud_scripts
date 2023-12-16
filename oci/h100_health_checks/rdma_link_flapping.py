@@ -69,8 +69,8 @@ class LinkFlappingTest:
         status = 0
         if len(self.link_data) >= 0:
             current_date = datetime.datetime.now()
-            current_date_str = current_date.strftime("%b %d %H:%M:%S")
-            current_date_sec = int(time.mktime(datetime.datetime.strptime(current_date_str, "%b %d %H:%M:%S").timetuple()))
+            current_date_str = current_date.strftime("%Y-%b-%d %H:%M:%S")
+            current_date_sec = int(time.mktime(datetime.datetime.strptime(current_date_str, "%Y-%b-%d %H:%M:%S").timetuple()))
             
             link_failures = False
             for interface in self.link_data:
