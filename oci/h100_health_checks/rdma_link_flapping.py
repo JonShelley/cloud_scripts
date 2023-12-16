@@ -82,7 +82,18 @@ class LinkFlappingTest:
 
                 if len(self.link_data[interface]["failures"]) > 0:
                     last_date_failure_str = self.link_data[interface]["failures"][-1]
-                    last_date_failure_sec = int(time.mktime(datetime.datetime.strptime(last_date_failure_str, "%b %d %H:%M:%S").timetuple()))
+                    last_date_failure = datetime.datetime.strptime(last_date_failure_str, "%b %d %H:%M:%S")
+
+                    # Compare the month of the last failure date with the current month
+                    if last_date_failure.month > current_date.month:
+                        # If the last failure month is greater than the current month, subtract one from the current year
+                        last_date_failure = last_date_failure.replace(year=current_date.year - 1)
+                    else:
+                        # Otherwise, set the year of the last failure date to the current year
+                        last_date_failure = last_date_failure.replace(year=current_date.year)
+
+                    # Convert the last failure date to seconds since the epoch
+                    last_date_failure_sec = int(time.mktime(last_date_failure.timetuple()))
                 
                 if last_date_failure_str != None and last_date_failure_str != current_date_str:
                     diff_secs = current_date_sec - last_date_failure_sec
@@ -103,7 +114,18 @@ class LinkFlappingTest:
 
                 if len(self.link_data[interface]["link_down"]) > 0:
                         last_date_down_str = self.link_data[interface]["link_down"][-1]
-                        last_date_down_sec = int(time.mktime(datetime.datetime.strptime(last_date_down_str, "%b %d %H:%M:%S").timetuple()))
+                        last_date_failure = datetime.datetime.strptime(last_date_failure_str, "%b %d %H:%M:%S")
+
+                        # Compare the month of the last failure date with the current month
+                        if last_date_failure.month > current_date.month:
+                            # If the last failure month is greater than the current month, subtract one from the current year
+                            last_date_failure = last_date_failure.replace(year=current_date.year - 1)
+                        else:
+                            # Otherwise, set the year of the last failure date to the current year
+                            last_date_failure = last_date_failure.replace(year=current_date.year)
+
+                        # Convert the last failure date to seconds since the epoch
+                        last_date_failure_sec = int(time.mktime(last_date_failure.timetuple()))
 
 
                 if last_date_down_str != None and last_date_down_str != current_date_str:
