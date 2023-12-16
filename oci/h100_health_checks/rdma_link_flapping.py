@@ -89,6 +89,7 @@ class LinkFlappingTest:
                     diff_hours = diff_secs // (60 * 60)
                     logger.debug(f"RDMA link ({interface}) failed  {diff_hours} hours ago")
 
+                    logger.debug(f"bootup_time_sec: {bootup_time_sec}, boot_time_grace_period: {bootup_time_grace_period}, current_date_sec: {current_date_sec}, diff_secs: {diff_secs}, diff_hours: {diff_hours}")
                     if diff_hours < self.time_interval and current_date_sec > bootup_time_grace_period:
                         logger.error(f"{interface}: one or more RDMA link flapping events within {self.time_interval} hours. Last flapping event: {last_date_failure_str})")
                         status = -1
@@ -109,7 +110,8 @@ class LinkFlappingTest:
                     diff_secs = current_date_sec - last_date_down_sec
                     diff_hours = diff_secs // (60 * 60)
                     logger.debug(f"RDMA link ({interface}) down  {diff_hours} hours ago")
-
+                    
+                    logger.debug(f"bootup_time_sec: {bootup_time_sec}, boot_time_grace_period: {bootup_time_grace_period}, current_date_sec: {current_date_sec}, diff_secs: {diff_secs}, diff_hours: {diff_hours}")
                     if diff_hours < self.time_interval and current_date_sec > bootup_time_grace_period:
                         logger.error(f"{interface}, one or more RDMA link down events within {self.time_interval} hours. Last link down event: {last_date_down_str}")
                         status = -2
