@@ -146,6 +146,8 @@ class LinkFlappingTest:
             logger.info("No RDMA link failures entry in /var/log/messages")
         if status == 0:    
             logger.info("RDMA link flapping/down test: Passed")
+        else:
+            logger.error("RDMA link flapping/down test: Failed")
         return 0
 
 
