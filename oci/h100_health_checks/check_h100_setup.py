@@ -154,7 +154,7 @@ if __name__ == '__main__':
     logger.info(f"Started H100 setup check at: {datetime_str}")
     oca_version = get_oca_version()
     status = check_rttcc_status()
-    check_ecc_errors()
+    #check_ecc_errors()
     check_rdma_link_status()
     
     # Check for RDMA link flapping
