@@ -145,6 +145,16 @@ def check_rdma_link_status():
         logger.info(f"RDMA Link Status Check: Passed")
     return status
 
+def get_host_serial():
+    # Run the shell command
+    result = subprocess.run(['sudo', 'dmidecode', '-s', 'system-serial-number'], stdout=subprocess.PIPE)
+
+    # Decode the output from bytes to string
+    output = result.stdout.decode('utf-8')
+
+    # Return the serial number
+    return output.strip()
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Check H100 setup')
     parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Set the logging level default: INFO")
@@ -181,6 +191,7 @@ if __name__ == '__main__':
         bwt.measure_gpu_bw()
         bwt.validate_results()
 
+    logger.info(f"Host Serial Number: {get_host_serial()}")
     datetime_str = datetime.now().strftime('%Y-%m-%d-%H%M%S')
     logger.info(f"Finished H100 setup check at: {datetime_str}")
     
