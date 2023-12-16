@@ -110,7 +110,7 @@ def check_ecc_errors():
         logger.error("DRAM ECC Test: Failed - {dram_errors}")
 
 def check_rdma_link_status():
-    status = "True"
+    status = True
     devices = ["mlx5_0", "mlx5_1", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8", "mlx5_9", "mlx5_10", "mlx5_12", "mlx5_13", "mlx5_14", "mlx5_15", "mlx5_16", "mlx5_17"]
 
     for device in devices:
@@ -137,12 +137,14 @@ def check_rdma_link_status():
             recommendation = re.sub(pattern, '', recommendation)
             if recommendation != "No issue was observed":
                 logger.error(f"{device}: {recommendation}")
-                status = "False"
+                status = False
             else:
                 logger.debug(f"{device}: {recommendation}")
 
     if status:
         logger.info(f"RDMA Link Status Check: Passed")
+    else:
+        logger.error(f"RDMA Link Status Check: Failed")
     return status
 
 def get_host_serial():
