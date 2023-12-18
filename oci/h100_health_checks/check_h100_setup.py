@@ -214,10 +214,10 @@ if __name__ == '__main__':
     if len(rdma_link_issues) > 0:
         for issue in rdma_link_issues:
             logger.error(f"{host_serial} - RDMA link issues: {issue}")
-    if len(lft_issues["failure"]) > 0 or len(lft_issues["link_down"]) > 0:
-        if len(lft_issues["failure"]) > 0:
-            for issue in lft_issues["failure"]:
-                logger.error(f"{host_serial} - RDMA link flapping issues: {lft_issues['failure']}")
+    if len(lft_issues["failures"]) > 0 or len(lft_issues["link_down"]) > 0:
+        if len(lft_issues["failures"]) > 0:
+            for issue in lft_issues["failures"]:
+                logger.error(f"{host_serial} - RDMA link flapping issues: {lft_issues['failures']}")
         if len(lft_issues["link_down"]) > 0:
             for issue in lft_issues["link_down"]:
                 logger.error(f"{host_serial} - RDMA link down issues: {issue}")    
