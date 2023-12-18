@@ -57,6 +57,7 @@ def get_oca_version():
         return version
 
 def check_rttcc_status():
+    link_status = []
     devices = ["mlx5_0", "mlx5_1", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8", "mlx5_9", "mlx5_10", "mlx5_12", "mlx5_13", "mlx5_14", "mlx5_15", "mlx5_16", "mlx5_17"]
     status = "disabled"
     status_dict = {"devices": {}}
@@ -72,8 +73,9 @@ def check_rttcc_status():
     
     for device in status_dict["devices"]:
         if status_dict["devices"][device] == "enabled":
-            logger.error(f"RTTCC status for {device}: enabled")
+            logger.warning(f"RTTCC enabled on {device}")
             status = "enabled"
+            link_status.append(f"RTTCC enabled on: {device}")
         else:
             logger.info(f"RTTCC status for {device}: disabled")
     if status == "disabled":
@@ -81,18 +83,22 @@ def check_rttcc_status():
     else:
         logger.error(f"RTTCC disabled check: Failed")
 
-    return status
+    return link_status
 
 def check_ecc_errors():
-    # Run the nvidia-smi -q command
-    result = subprocess.run(['nvidia-smi', '-q'], stdout=subprocess.PIPE)
-
+    try:
+        # Run the nvidia-smi -q command
+        result = subprocess.run(['nvidia-smi', '-q'], stdout=subprocess.PIPE)
+    except:
+        logger.error("Skipping SRAM/DRAM ECC Test: nvidia-smi command not found")
+        return
+    
     # Decode the output from bytes to string
     output = result.stdout.decode('utf-8')
 
     # Find the lines containing "SRAM Correctable" and "DRAM Correctable"
-    sram_line = re.search(r'SRAM Correctable.*', output)
-    dram_line = re.search(r'DRAM Correctable.*', output)
+    sram_line = re.search(r'SRAM Uncorrectable.*', output)
+    dram_line = re.search(r'DRAM Uncorrectable.*', output)
 
     # Extract the fourth field from these lines and remove any whitespace
     sram_errors = sram_line.group().split()[3].strip() if sram_line else None
@@ -112,7 +118,8 @@ def check_ecc_errors():
 def check_rdma_link_status():
     status = True
     devices = ["mlx5_0", "mlx5_1", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8", "mlx5_9", "mlx5_10", "mlx5_12", "mlx5_13", "mlx5_14", "mlx5_15", "mlx5_16", "mlx5_17"]
-
+    
+    link_issues = []
     for device in devices:
         # Run the mlxlink command
         command = ['sudo', 'mlxlink', '-d', device, '-m', '-c', '-e']
@@ -137,6 +144,7 @@ def check_rdma_link_status():
             recommendation = re.sub(pattern, '', recommendation)
             if recommendation != "No issue was observed":
                 logger.error(f"{device}: {recommendation}")
+                link_issues.append(f"{device}: {recommendation}")
                 status = False
             else:
                 logger.debug(f"{device}: {recommendation}")
@@ -145,7 +153,7 @@ def check_rdma_link_status():
         logger.info(f"RDMA Link Status Check: Passed")
     else:
         logger.error(f"RDMA Link Status Check: Failed")
-    return status
+    return link_issues
 
 def get_host_serial():
     # Run the shell command
@@ -171,14 +179,14 @@ if __name__ == '__main__':
     datetime_str = datetime.now().strftime('%Y-%m-%d-%H%M%S')
     logger.info(f"Started H100 setup check at: {datetime_str}")
     oca_version = get_oca_version()
-    status = check_rttcc_status()
-    #check_ecc_errors()
-    check_rdma_link_status()
+    rttcc_issues = check_rttcc_status()
+    ecc_issues = check_ecc_errors()
+    rdma_link_issues = check_rdma_link_status()
     
     # Check for RDMA link flapping
     lft = LinkFlappingTest(time_interval=args.lf_interval)
     lft.get_rdma_link_failures()
-    lft.process_rdma_link_flapping()
+    lft_issues = lft.process_rdma_link_flapping()
 
     # Check for GPU Xid errors
     xc = XidChecker()
@@ -193,7 +201,24 @@ if __name__ == '__main__':
         bwt.measure_gpu_bw()
         bwt.validate_results()
 
-    logger.info(f"Host Serial Number: {get_host_serial()}")
+    # Summarize the results
+    host_serial = get_host_serial()
+    if oca_version < "1.37.2":
+        logger.error(f"{host_serial} - Oracle Cloud Agent: {oca_version} needs to be updated to 1.37.2 or higher")
+    if len(rttc_issues) > 0:
+        logger.error(f"{host_serial} - RTTCC issues: {rttcc_issues}")
+    if len(ecc_issues) > 0:
+        logger.error(f"{host_serial} - ECC issues: {ecc_issues}")
+    if len(rdma_link_issues) > 0:
+        for issue in rdma_link_issues:
+            logger.error(f"{host_serial} - RDMA link issues: {issue}")
+    if len(lft_issues["failure"]) > 0 or len(lft_issues["link_down"]) > 0:
+        if len(lft_issues["failure"]) > 0:
+            for issue in lft_issues["failure"]:
+                logger.error(f"{host_serial} - RDMA link flapping issues: {lft_issues['failure']}")
+        if len(lft_issues["link_down"]) > 0:
+            for issue in lft_issues["link_down"]:
+                logger.error(f"{host_serial} - RDMA link down issues: {issue}")    
     datetime_str = datetime.now().strftime('%Y-%m-%d-%H%M%S')
     logger.info(f"Finished H100 setup check at: {datetime_str}")
     
