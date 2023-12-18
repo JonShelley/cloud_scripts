@@ -146,6 +146,7 @@ def check_rdma_link_status():
 
         if stderr and stderr.find("-E-") != -1:
             logger.error(f"{device}: {stderr}")
+            link_issues.append(f"{device}: {stderr[:80]}")
             status = "False"
             continue
 
