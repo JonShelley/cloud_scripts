@@ -91,7 +91,7 @@ def check_ecc_errors():
         # Run the nvidia-smi -q command
         result = subprocess.run(['nvidia-smi', '-q'], stdout=subprocess.PIPE)
     except FileNotFoundError:
-        logger.error("Skipping SRAM/DRAM ECC Test: nvidia-smi command not found")
+        logger.warning("Skipping SRAM/DRAM ECC Test: nvidia-smi command not found")
         return ["Skipped SRAM/DRAM ECC Test: nvidia-smi command not found"]
     
     # Decode the output from bytes to string
@@ -225,7 +225,10 @@ if __name__ == '__main__':
         logger.error(f"RTTCC issues: {rttcc_issues}")
     if len(ecc_issues) > 0:
         for issue in ecc_issues:
-            logger.error(f"{host_serial} - ECC issues: {issue}")
+            if "Skipped" in issue:
+                logger.warning(f"{host_serial} - {issue}")
+            else:
+                logger.error(f"{host_serial} - ECC issues: {issue}")
     if len(rdma_link_issues) > 0:
         for issue in rdma_link_issues:
             logger.error(f"{host_serial} - RDMA link issues: {issue}")
