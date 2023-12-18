@@ -86,6 +86,7 @@ def check_rttcc_status():
     return link_status
 
 def check_ecc_errors():
+    ecc_issues = []
     try:
         # Run the nvidia-smi -q command
         result = subprocess.run(['nvidia-smi', '-q'], stdout=subprocess.PIPE)
@@ -114,6 +115,7 @@ def check_ecc_errors():
         logger.info("DRAM ECC Test: Passed")
     else:
         logger.error("DRAM ECC Test: Failed - {dram_errors}")
+    return ecc_issues
 
 def check_rdma_link_status():
     status = True
@@ -205,7 +207,7 @@ if __name__ == '__main__':
     host_serial = get_host_serial()
     if oca_version < "1.37.2":
         logger.error(f"{host_serial} - Oracle Cloud Agent: {oca_version} needs to be updated to 1.37.2 or higher")
-    if len(rttc_issues) > 0:
+    if len(rttcc_issues) > 0:
         logger.error(f"{host_serial} - RTTCC issues: {rttcc_issues}")
     if len(ecc_issues) > 0:
         logger.error(f"{host_serial} - ECC issues: {ecc_issues}")

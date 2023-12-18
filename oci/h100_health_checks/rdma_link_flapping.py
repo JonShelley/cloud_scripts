@@ -58,7 +58,7 @@ class LinkFlappingTest:
 
     def process_rdma_link_flapping(self):
 
-        link_issues = {"failures": [], "link_down": []"}
+        link_issues = {"failures": [], "link_down": []}
 
         # Get the time stamp when the host came up
         bootup_time = subprocess.run(['uptime', '-s'], stdout=subprocess.PIPE)
