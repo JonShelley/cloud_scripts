@@ -90,9 +90,9 @@ def check_ecc_errors():
     try:
         # Run the nvidia-smi -q command
         result = subprocess.run(['nvidia-smi', '-q'], stdout=subprocess.PIPE)
-    except:
+    except FileNotFoundError:
         logger.error("Skipping SRAM/DRAM ECC Test: nvidia-smi command not found")
-        return
+        return ["Skipped SRAM/DRAM ECC Test: nvidia-smi command not found"]
     
     # Decode the output from bytes to string
     output = result.stdout.decode('utf-8')
