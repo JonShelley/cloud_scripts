@@ -207,11 +207,11 @@ if __name__ == '__main__':
     host_serial = get_host_serial()
     logger.info(f"--------- Summary of H100 setup check for {host_serial} ---------")
     if oca_version < "1.37.2":
-        logger.error(f"{Oracle Cloud Agent: {oca_version} needs to be updated to 1.37.2 or higher")
+        logger.error(f"Oracle Cloud Agent: {oca_version} needs to be updated to 1.37.2 or higher")
     if len(rttcc_issues) > 0:
-        logger.error(f"{RTTCC issues: {rttcc_issues}")
+        logger.error(f"RTTCC issues: {rttcc_issues}")
     if len(ecc_issues) > 0:
-        logger.error(f"{ECC issues: {ecc_issues}")
+        logger.error(f"ECC issues: {ecc_issues}")
     if len(rdma_link_issues) > 0:
         for issue in rdma_link_issues:
             logger.error(f"{host_serial} - RDMA link issues: {issue}")
