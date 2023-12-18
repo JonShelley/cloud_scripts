@@ -98,23 +98,36 @@ def check_ecc_errors():
     output = result.stdout.decode('utf-8')
 
     # Find the lines containing "SRAM Correctable" and "DRAM Correctable"
-    sram_line = re.search(r'SRAM Uncorrectable.*', output)
-    dram_line = re.search(r'DRAM Uncorrectable.*', output)
+    sram_matches = re.findall(r'SRAM Uncorrectable\s+:\s+(\d+)', output)
+    dram_matches = re.findall(r'DRAM Uncorrectable\s+:\s+(\d+)', output)
+    gpu_matches = re.findall(r'\nGPU\s+(.*)\n', output)
+    vol_sram_line = sram_matches[0::2]
+    vol_dram_line = dram_matches[0::2]
+    agg_sram_line = sram_matches[1::2]
+    agg_dram_line = dram_matches[1::2]
 
-    # Extract the fourth field from these lines and remove any whitespace
-    sram_errors = sram_line.group().split()[3].strip() if sram_line else None
-    dram_errors = dram_line.group().split()[3].strip() if dram_line else None
+    for i, gpu in enumerate(gpu_matches):
+        logger.debug(f"GPU: {gpu}")
+        if vol_sram_line[i] != "0":
+            logger.debug(f"Volatile SRAM Uncorrectable: {vol_sram_line[i]}")
+            ecc_issues.append(f"{gpu_matches[i]} - Volatile SRAM Uncorrectable: {vol_sram_line[i]}")
+        if vol_dram_line[i] != "0":
+            logger.debug(f"Volatile DRAM Uncorrectable: {vol_dram_line[i]}")
+            ecc_issues.append(f"{gpu_matches[i]} - Volatile DRAM Uncorrectable: {vol_dram_line[i]}")
+        if agg_sram_line[i] != "0":
+            logger.debug(f"Aggregate SRAM Uncorrectable: {agg_sram_line[i]}")
+            ecc_issues.append(f"{gpu_matches[i]} - Aggregate SRAM Uncorrectable: {agg_sram_line[i]}")
+        if agg_dram_line[i] != "0":
+            logger.debug(f"Aggregate DRAM Uncorrectable: {agg_dram_line[i]}")
+            ecc_issues.append(f"{gpu_matches[i]} - Aggregate DRAM Uncorrectable: {agg_dram_line[i]}")
+
 
     # Check if the extracted values are equal to "0000000000000000" and log the appropriate message
-    if sram_errors == "0000000000000000" or sram_errors == "0":
-        logger.info("SRAM ECC Test: Passed")
+    if len(ecc_issues) == 0:
+        logger.info("GPU ECC Test: Passed")
     else:
-        logger.error("SRAM ECC Test: Failed - {sram_errors}")
-
-    if dram_errors == "0000000000000000" or dram_errors == "0":
-        logger.info("DRAM ECC Test: Passed")
-    else:
-        logger.error("DRAM ECC Test: Failed - {dram_errors}")
+        logger.error("GPU ECC Test: Failed")
+    
     return ecc_issues
 
 def check_rdma_link_status():
@@ -211,7 +224,8 @@ if __name__ == '__main__':
     if len(rttcc_issues) > 0:
         logger.error(f"RTTCC issues: {rttcc_issues}")
     if len(ecc_issues) > 0:
-        logger.error(f"ECC issues: {ecc_issues}")
+        for issue in ecc_issues:
+            logger.error(f"{host_serial} - ECC issues: {issue}")
     if len(rdma_link_issues) > 0:
         for issue in rdma_link_issues:
             logger.error(f"{host_serial} - RDMA link issues: {issue}")
