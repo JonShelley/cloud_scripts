@@ -8,6 +8,7 @@ for x in `cat $HOSTLIST`
 do
     echo $x
     HID=$(ssh $x sudo /usr/sbin/dmidecode -s system-serial-number)
-    ssh $x "cd $BASEDIR;sudo python3 check_h100_setup.py 2>$1 | tee nhc_${HID}_\${HOSTNAME}.out"
-    scp $x:$BASEDIR/nhc_${HID}_\${HOSTNAME}.out $DATE/.
+    NODE_NAME=$(ssh $x hostname)
+    ssh $x "cd $BASEDIR;sudo python3 check_h100_setup.py 2>&1 | tee nhc_${HID}_\${NODE_NAME}.out"
+    scp $x:$BASEDIR/nhc_${HID}_\${NODE_NAME}.out $DATE/.
 done
