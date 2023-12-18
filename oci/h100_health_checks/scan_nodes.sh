@@ -3,7 +3,7 @@
 HOSTLIST=${1:-hostlist.txt}
 BASEDIR=${2:-~/cloud_scripts/oci/h100_health_checks}
 DATE=`date "+%Y%m%d-%H%M%S"`
-mkdir $DATE
+mkdir -p $DATE
 for x in `cat $HOSTLIST`
 do
     echo $x
