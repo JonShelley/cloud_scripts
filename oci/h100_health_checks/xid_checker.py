@@ -84,7 +84,7 @@ class XidChecker:
                     logger.debug(f"No GPU Xid {XID} error found in dmesg")
                 if tmp_dict != {}:
                     if self.XID_EC[XID]['severity'] == "Critical":
-                        status = "Fail"
+                        status = "Failed"
                     self.results[XID] = {"results": tmp_dict, "description": self.XID_EC[XID]['description']}
         else:
             logger.info("Xid Check: Passed")

@@ -206,7 +206,7 @@ if __name__ == '__main__':
 
     # Check for GPU Xid errors
     xc = XidChecker()
-    results = xc.check_gpu_xid()
+    xid_results = xc.check_gpu_xid()
 
     # Check GPU bandwidth
     if args.bw_test == True or args.run_all == True:
@@ -230,6 +230,10 @@ if __name__ == '__main__':
                 logger.warning(f"{host_serial} - {issue}")
             else:
                 logger.error(f"{host_serial} - ECC issues: {issue}")
+    if xid_results["status"] == "Failed":
+        for xid in xid_results["results"]:
+            for pci in xid_results["results"][xid]["results"]:
+                logger.error(f"{host_serial} - GPU Xid {xid} device: {pci}, {xid_results['results'][xid]['description']}")
     if len(rdma_link_issues) > 0:
         for issue in rdma_link_issues:
             logger.error(f"{host_serial} - RDMA link issues: {issue}")
