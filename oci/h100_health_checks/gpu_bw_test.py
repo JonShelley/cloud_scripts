@@ -52,26 +52,24 @@ class BandwidthTest:
         # Check if any processes are running on the GPUs before running the test
         result = subprocess.run(["nvidia-smi", "-q", "-d", "PIDS"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         # Define the regular expression pattern for the GPU ID and the Processes
-        pattern = r'GPU\s(.*)\s+Processes\s+:\s+(.*)'
+        pattern = r'\nGPU\s(.*)\s+Processes\s+:\s+(.*)'
 
         # Find all matches in the output
         matches = re.findall(pattern, result.stdout)
 
-        # Initialize an empty dictionary to store the results
-        pid_results = {}
-
         # For each match, extract the GPU ID and the number of processes
-        total_processes = 0
+        gpu_idle_count = 0
         for match in matches:
             gpu_id, processes = match
             # If processes is 'None', set it to 0
             if processes == 'None':
-                processes = 0
-            total_processes += int(processes)
-            pid_results[gpu_id] = processes
+                gpu_idle_count += 1
+            else:
+                logger.debug("GPU {} has processes running on it".format(gpu_id))
             
-        
-        if total_processes > 0:
+
+        print("GPU Idle Count: {}".format(gpu_idle_count))
+        if gpu_idle_count != 8:
             logger.error("GPU processes are running on the host. Please make sure no processes are running on the GPU before you re-test")
             self.results = None
             return self.results
