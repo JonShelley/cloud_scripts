@@ -147,7 +147,7 @@ def check_rdma_link_status():
         if stderr and stderr.find("-E-") != -1:
             stderr = stderr.split("\n")
             stderr_line = ", ".join(stderr)
-            logger.error(f"{device}: {stderr_line}")
+            logger.debug(f"{device}: {stderr_line}")
             link_issues.append(f"{device}: {stderr[0]}")
             status = "False"
             continue
@@ -170,7 +170,7 @@ def check_rdma_link_status():
     if status:
         logger.info(f"RDMA Link Status Check: Passed")
     else:
-        logger.error(f"RDMA Link Status Check: Failed")
+        logger.warning(f"RDMA Link Status Check: Failed")
     return link_issues
 
 def get_host_serial():
