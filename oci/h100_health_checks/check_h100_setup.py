@@ -146,7 +146,8 @@ def check_rdma_link_status():
 
         if stderr and stderr.find("-E-") != -1:
             logger.error(f"{device}: {stderr}")
-            link_issues.append(f"{device}: {stderr[:80]}")
+            stderr = stderr.split("\n")
+            link_issues.append(f"{device}: {stderr[0]}")
             status = "False"
             continue
 
@@ -159,7 +160,7 @@ def check_rdma_link_status():
             pattern = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
             recommendation = re.sub(pattern, '', recommendation)
             if recommendation != "No issue was observed":
-                logger.error(f"{device}: {recommendation}")
+                logger.debug(f"{device}: {recommendation}")
                 link_issues.append(f"{device}: {recommendation}")
                 status = False
             else:
