@@ -143,7 +143,7 @@ class BandwidthTest:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run GPU bandwidth test')
-    parser.add_argument('--log-level', dest='log_level', default='NONE', help='Logging level (default: INFO)')
+    parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Set the logging level default: INFO")
     parser.add_argument('-i', dest='iterations', default='1', help='Number of iterations to run Ex. -i 3')
     parser.add_argument('-s', dest='size', default='32000000', help='Message size to run Ex. -s 32000000')
     parser.add_argument('--bw-test-exe', dest='bw_test_exe', default='/opt/oci-hpc/cuda-samples/bin/x86_64/linux/release/bandwidthTest', help='Path to the bw_test executable')
