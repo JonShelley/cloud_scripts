@@ -72,8 +72,9 @@ class BandwidthTest:
             
         
         if total_processes > 0:
-            logger.error("GPU processes are running on the host. Please stop the processes and rerun the test")
-            return
+            logger.error("GPU processes are running on the host. Please make sure no processes are running on the GPU before you re-test")
+            self.results = None
+            return self.results
 
         for i in range(iterations):
             for device in range(gpus):
@@ -115,6 +116,11 @@ class BandwidthTest:
         self.results = results
 
     def validate_results(self):
+        gpu_issues = {"status": "Passed", "issues": []}
+        if self.results == None:
+            gpu_issues["issues"].append("GPU bandwidth test did not run since processes are running on the GPU")
+            gpu_issues["status"] = "Failed"
+            return gpu_issues
         status = True
         for device in self.results["gpus"]:
             dtoh = self.results["gpus"][device]["dtoh"]
@@ -123,14 +129,16 @@ class BandwidthTest:
             htod_avg = sum(htod) / len(htod)
             logger.debug("Device: {} DtoH: {} HtoD: {}".format(device, dtoh_avg, htod_avg))
             if dtoh_avg < self.dtoh_threshold:
-                logger.error("Device: {} DtoH: {} is below threshold: {}".format(device, dtoh_avg, self.dtoh_threshold))
-                status = False
+                logger.debug("Device: {} DtoH: {} is below threshold: {}".format(device, dtoh_avg, self.dtoh_threshold))
+                gpu_issues["issues"].append("Device: {} DtoH: {} is below threshold: {}".format(device, dtoh_avg, self.dtoh_threshold))
+                gpu_issues["status"] = "Failed"
             if htod_avg < self.htod_threshold:
-                logger.error("Device: {} HtoD: {} is below threshold: {}".format(device, htod_avg, self.htod_threshold))
-                status = False
-        if status == True:
+                logger.debug("Device: {} HtoD: {} is below threshold: {}".format(device, htod_avg, self.htod_threshold))
+                gpu_issues["issues"].append("Device: {} HtoD: {} is below threshold: {}".format(device, htod_avg, self.htod_threshold))
+                gpu_issues["status"] = "Failed"
+        if gpu_issues["status"] == "Passed":
             logger.info("GPU bandwidth test passed")
-        return status
+        return gpu_issues
             
 
 if __name__ == '__main__':
@@ -151,4 +159,11 @@ if __name__ == '__main__':
 
     bwt = BandwidthTest(iteration=iterations, size=size, bw_test_exe=bw_test_exe)
     bwt.measure_gpu_bw()
-    bwt.validate_results()
+    bwt_results = bwt.validate_results()
+    if bwt_results["status"] == "Passed":
+        logger.info("GPU bandwidth test passed")
+    else:
+        logger.error("GPU bandwidth test failed")
+        for issue in bwt_results["issues"]:
+            logger.error(issue)    
+

@@ -211,13 +211,14 @@ if __name__ == '__main__':
     xid_results = xc.check_gpu_xid()
 
     # Check GPU bandwidth
+    bwt_results = None
     if args.bw_test == True or args.run_all == True:
         if args.bw_test_exe:
             bwt = BandwidthTest(bw_test_exe=args.bw_test_exe)
         else:
             bwt = BandwidthTest()
         bwt.measure_gpu_bw()
-        bwt.validate_results()
+        bwt_results = bwt.validate_results()
 
     # Summarize the results
     host_serial = get_host_serial()
@@ -245,7 +246,11 @@ if __name__ == '__main__':
                 logger.error(f"{host_serial} - RDMA link flapping issues: {issue}")
         if len(lft_issues["link_down"]) > 0:
             for issue in lft_issues["link_down"]:
-                logger.error(f"{host_serial} - RDMA link down issues: {issue}")    
+                logger.error(f"{host_serial} - RDMA link down issues: {issue}")
+    if bwt_results != None:
+        if bwt_results["status"] == "Failed":
+            for issue in bwt_results["issues"]:
+                logger.error(f"{host_serial} - GPU bandwidth issues: {issue}")
     datetime_str = datetime.now().strftime('%Y-%m-%d-%H%M%S')
     logger.info(f"Finished H100 setup check at: {datetime_str}")
     
