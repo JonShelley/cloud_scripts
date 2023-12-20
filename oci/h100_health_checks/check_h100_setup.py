@@ -149,7 +149,7 @@ def check_row_remap_errors():
     for i, line in enumerate(output.split('\n')):
         if line == "":
             continue
-        tmp_data = line.split()
+        tmp_data = line.split(",")
         print(tmp_data[0], tmp_data[1], tmp_data[2])
         print(len(tmp_data[0]), len(tmp_data[1]), len(tmp_data[2]))
         if tmp_data[0] != "0":
