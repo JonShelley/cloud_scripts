@@ -134,7 +134,7 @@ def check_row_remap_errors():
     remap_issues = []
     try:
         # Run the nvidia-smi -q command
-        result = subprocess.run(['nvidia-smi', '--query-remapped-rows=remapped_rows.pending,remapped_rows.failure,remapped_rows.uncorrectable'], stdout=subprocess.PIPE)
+        result = subprocess.run(['nvidia-smi', '--query-remapped-rows=remapped_rows.pending,remapped_rows.failure,remapped_rows.uncorrectable', '--format=csv,noheader'], stdout=subprocess.PIPE)
     
         if result.returncode != 0:
             logger.debug(f"Check row remap command exited with error code: {result.returncode}")
@@ -145,10 +145,9 @@ def check_row_remap_errors():
     
     # Decode the output from bytes to string
     output = result.stdout.decode('utf-8')
-    print("Output: {}".format(output))
+    logger.debug("Output: {}".format(output))
     for i, line in enumerate(output.split('\n')):
         tmp_data = line.split()
-        print("Temp Data: {}".format(tmp_data))
         if tmp_data[0] != 0:
             logger.debug(f"GPU: {i} - Row Remap Pending: {tmp_data[0]}")
             remap_issues.append(f"GPU: {i} Row Remap Pending: {tmp_data[0]}")
