@@ -147,6 +147,8 @@ def check_row_remap_errors():
     output = result.stdout.decode('utf-8')
     logger.debug("Output: {}".format(output))
     for i, line in enumerate(output.split('\n')):
+        if line == "":
+            continue
         tmp_data = line.split()
         if tmp_data[0] != 0:
             logger.debug(f"GPU: {i} - Row Remap Pending: {tmp_data[0]}")
