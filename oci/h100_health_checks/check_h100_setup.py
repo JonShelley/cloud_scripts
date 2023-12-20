@@ -150,8 +150,7 @@ def check_row_remap_errors():
         if line == "":
             continue
         tmp_data = line.split(",")
-        print(tmp_data[0], tmp_data[1], tmp_data[2])
-        print(len(tmp_data[0]), len(tmp_data[1]), len(tmp_data[2]))
+        tmp_data = [x.strip() for x in tmp_data]
         if tmp_data[0] != "0":
             logger.debug(f"GPU: {i} - Row Remap Pending: {tmp_data[0]}")
             remap_issues.append(f"GPU: {i} Row Remap Pending: {tmp_data[0]}")
