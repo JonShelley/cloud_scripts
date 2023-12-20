@@ -156,7 +156,7 @@ def check_row_remap_errors():
             remap_issues.append(f"GPU: {i} Row Remap Failure: {tmp_data[1]}")
         if tmp_data[2] != 0:
             logger.debug(f"GPU: {i} - Row Remap Uncorrectable: {tmp_data[2]}")
-            if tmp_data[2] > 512:
+            if int(tmp_data[2]) > 512:
                 remap_issues.append(f"GPU: {i} - Row Remap Uncorrectable >512: {tmp_data[2]}")
             else:
                 remap_issues.append(f"GPU: {i} - Row Remap Uncorrectable <512: {tmp_data[2]}")# Check if there are ecc_issues
