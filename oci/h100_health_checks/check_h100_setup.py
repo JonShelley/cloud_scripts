@@ -165,7 +165,7 @@ def check_rdma_link_status():
         nic_fw_version = re.sub(color_pattern, '', nic_fw_version)
         recommendation = re.sub(color_pattern, '', recommendation)
 
-        logger.info(f"{device}: {vendor_serial_num} - {cable_fw_version} - {nic_fw_version} - {link_state} - {recommendation}}")
+        logger.info(f"{device}: {vendor_serial_num} - {cable_fw_version} - {nic_fw_version} - {link_state} - {recommendation}")
 
         # Extract the part after the ":" and print it along with the device name
         if link_state != "Active":
