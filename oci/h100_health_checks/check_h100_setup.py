@@ -154,6 +154,9 @@ def check_rdma_link_status():
 
         # Find the line containing "Recommendation"
         recommendation_line = re.search(r'Recommendation.*', output)
+        vendor_serial_num_line = re.search(r'Vendor Serial Number.*', output)
+        vendor_serial_num = vendor_serial_num_line.group().split(":")[1].strip()
+        logger.info(f"{device}: {vendor_serial_num}")
 
         # Extract the part after the ":" and print it along with the device name
         if recommendation_line:
@@ -232,7 +235,10 @@ if __name__ == '__main__':
             if "Skipped" in issue:
                 logger.warning(f"{host_serial} - {issue}")
             else:
-                logger.error(f"{host_serial} - ECC issues: {issue}")
+                if "Aggregate" in issue:
+                    logger.warning(f"{host_serial} - ECC issues: {issue}")
+                else:
+                    logger.error(f"{host_serial} - ECC issues: {issue}")
     if xid_results["status"] == "Failed":
         for xid in xid_results["results"]:
             for pci in xid_results["results"][xid]["results"]:
