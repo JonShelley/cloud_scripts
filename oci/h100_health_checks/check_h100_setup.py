@@ -122,13 +122,51 @@ def check_ecc_errors():
             ecc_issues.append(f"{gpu_matches[i]} - Aggregate DRAM Uncorrectable: {agg_dram_line[i]}")
 
 
-    # Check if the extracted values are equal to "0000000000000000" and log the appropriate message
+    # Check if there are ecc_issues
     if len(ecc_issues) == 0:
         logger.info("GPU ECC Test: Passed")
     else:
-        logger.error("GPU ECC Test: Failed")
+        logger.warning("GPU ECC Test: Failed")
     
     return ecc_issues
+
+def check_row_remap_errors():
+    remap_issues = []
+    try:
+        # Run the nvidia-smi -q command
+        result = subprocess.run(['nvidia-smi', '--query-remapped-rows=remapped_rows.pending,remapped_rows.failure,remapped_rows.uncorrectable'], stdout=subprocess.PIPE)
+    
+        if result.returncode != 0:
+            logger.debug(f"Check row remap command exited with error code: {result.returncode}")
+    
+    except FileNotFoundError:
+        logger.warning("Skipping Row Remap Test: nvidia-smi command not found")
+        return ["Skipped Row Remap Test: nvidia-smi command not found"]
+    
+    # Decode the output from bytes to string
+    output = result.stdout.decode('utf-8')
+
+    for i, line in enumerate(output.split('\n')):
+        tmp_data = line.split()
+        if tmp_data[0] != 0:
+            logger.debug(f"GPU: {i} - Row Remap Pending: {tmp_data[0]}")
+            remap_issues.append(f"GPU: {i} Row Remap Pending: {tmp_data[0]}")
+        if tmp_data[1] != 0:
+            logger.debug(f"GPU: {i} - Row Remap Failure: {tmp_data[1]}")
+            remap_issues.append(f"GPU: {i} Row Remap Failure: {tmp_data[1]}")
+        if tmp_data[2] != 0:
+            logger.debug(f"GPU: {i} - Row Remap Uncorrectable: {tmp_data[2]}")
+            if tmp_data[2] > 512:
+                remap_issues.append(f"GPU: {i} - Row Remap Uncorrectable >512: {tmp_data[2]}")
+            else:
+                remap_issues.append(f"GPU: {i} - Row Remap Uncorrectable <512: {tmp_data[2]}")# Check if there are ecc_issues
+    
+    if len(remap_issues) == 0:
+        logger.info("GPU Remap Test: Passed")
+    else:
+        logger.warning("GPU Remap Test: Failed")
+    
+    return remap_issues
 
 def check_rdma_link_status():
     status = True
@@ -165,7 +203,7 @@ def check_rdma_link_status():
         nic_fw_version = re.sub(color_pattern, '', nic_fw_version)
         recommendation = re.sub(color_pattern, '', recommendation)
 
-        logger.info(f"{device}: {vendor_serial_num} - {cable_fw_version} - {nic_fw_version} - {link_state} - {recommendation}")
+        logger.debug(f"{device}: {vendor_serial_num} - {cable_fw_version} - {nic_fw_version} - {link_state} - {recommendation}")
 
         # Extract the part after the ":" and print it along with the device name
         if link_state != "Active":
@@ -210,7 +248,14 @@ if __name__ == '__main__':
     logger.info(f"Started H100 setup check at: {datetime_str}")
     oca_version = get_oca_version()
     rttcc_issues = check_rttcc_status()
+
+    # Check for ECC errors
     ecc_issues = check_ecc_errors()
+    
+    # Check for row remap errors
+    remap_results = check_row_remap_errors()
+
+    # Check RDMA link status
     rdma_link_issues = check_rdma_link_status()
     
     # Check for RDMA link flapping
@@ -248,6 +293,12 @@ if __name__ == '__main__':
                     logger.warning(f"{host_serial} - ECC issues: {issue}")
                 else:
                     logger.error(f"{host_serial} - ECC issues: {issue}")
+    if len(remap_results) > 0:
+        for issue in remap_results:
+            if "<512" in issue:
+                logger.warning(f"{host_serial} - {issue}")
+            else:
+                logger.error(f"{host_serial} - {issue}")
     if xid_results["status"] == "Failed":
         for xid in xid_results["results"]:
             for pci in xid_results["results"][xid]["results"]:
