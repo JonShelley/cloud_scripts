@@ -163,7 +163,7 @@ def check_rdma_link_status():
         # Remove hidden characters from the output
         link_state = re.sub(color_pattern, '', link_state)
         nic_fw_version = re.sub(color_pattern, '', nic_fw_version)
-        recommendation = re.sub(color_pattern, '', recommendation.group())
+        recommendation = re.sub(color_pattern, '', recommendation)
 
         logger.info(f"{device}: {vendor_serial_num}")
 
