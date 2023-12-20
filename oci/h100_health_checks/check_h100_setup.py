@@ -153,22 +153,31 @@ def check_rdma_link_status():
             continue
 
         # Find the line containing "Recommendation"
-        recommendation_line = re.search(r'Recommendation.*', output)
-        vendor_serial_num_line = re.search(r'Vendor Serial Number.*', output)
-        vendor_serial_num = vendor_serial_num_line.group().split(":")[1].strip()
+        color_pattern = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        link_state = re.search(r'\nState.*', output).group().split(":")[1].strip()
+        recommendation = re.search(r'Recommendation.*', output).group().split(":")[1].strip()
+        vendor_serial_num = re.search(r'Vendor Serial Number.*', output).group().split(":")[1].strip()
+        nic_fw_version = re.search(r'Firmware Version.*', output).group().split(":")[1].strip()
+        cable_fw_version = re.search(r'FW Version.*', output).group().split(":")[1].strip()
+
+        # Remove hidden characters from the output
+        link_state = re.sub(color_pattern, '', link_state)
+        nic_fw_version = re.sub(color_pattern, '', nic_fw_version)
+        recommendation = re.sub(color_pattern, '', recommendation.group())
+
         logger.info(f"{device}: {vendor_serial_num}")
 
         # Extract the part after the ":" and print it along with the device name
-        if recommendation_line:
-            recommendation = recommendation_line.group().split(":")[1].strip()
-            pattern = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-            recommendation = re.sub(pattern, '', recommendation)
-            if recommendation != "No issue was observed":
-                logger.debug(f"{device}: {recommendation}")
-                link_issues.append(f"{device}: {recommendation}")
-                status = False
-            else:
-                logger.debug(f"{device}: {recommendation}")
+        if link_state != "Active":
+            logger.debug(f"{device}: {link_state}")
+            link_issues.append(f"{device} - {vendor_serial_num} - {cable_fw_version} - {nic_fw_version}: {link_state}")
+            status = False
+        if recommendation != "No issue was observed":
+            logger.debug(f"{device}: {recommendation}")
+            link_issues.append(f"{device} - {vendor_serial_num} - {cable_fw_version} - {nic_fw_version}: {recommendation}")
+            status = False
+        else:
+            logger.debug(f"{device}: {recommendation}")
 
     if status:
         logger.info(f"RDMA Link Status Check: Passed")
