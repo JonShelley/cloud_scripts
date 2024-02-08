@@ -253,38 +253,67 @@ if __name__ == '__main__':
     rttcc_issues = check_rttcc_status()
 
     # Check for ECC errors
-    ecc_issues = check_ecc_errors()
+    try:
+        ecc_issues = check_ecc_errors()
+    except Exception as e:
+        logger.warn(f"Failed to check ECC errors with error: {e}")
+        ecc_issues = []
     
     # Check for row remap errors
-    remap_results = check_row_remap_errors()
+    try:
+        remap_results = check_row_remap_errors()
+    except Exception as e:
+        logger.warn(f"Failed to check row remap errors with error: {e}")
+        remap_results = []
 
     # Check RDMA link status
-    rdma_link_issues = check_rdma_link_status()
+    try:
+        rdma_link_issues = check_rdma_link_status()
+    except Exception as e:
+        logger.warn(f"Failed to check RDMA link status with error: {e}")
+        rdma_link_issues = []
     
     # Check for RDMA link flapping
-    lft = LinkFlappingTest(time_interval=args.lf_interval)
-    lft.get_rdma_link_failures()
-    lft_issues = lft.process_rdma_link_flapping()
+    try:
+        lft = LinkFlappingTest(time_interval=args.lf_interval)
+        lft.get_rdma_link_failures()
+        lft_issues = lft.process_rdma_link_flapping()
+    except Exception as e:
+        logger.warn(f"Failed to check RDMA link flapping with error: {e}")
+        lft_issues = {"failures": [], "link_down": []}
 
     # Check for GPU Xid errors
-    xc = XidChecker()
-    xid_results = xc.check_gpu_xid()
+    try:
+        xc = XidChecker()
+        xid_results = xc.check_gpu_xid()
+    except Exception as e:
+        logger.warn(f"Failed to check GPU Xid errors with error: {e}")
+        xid_results = {"status": "None", "results": {}}
 
     # Check GPU bandwidth
     bwt_results = None
-    if args.bw_test == True or args.run_all == True:
-        if args.bw_test_exe:
-            bwt = BandwidthTest(bw_test_exe=args.bw_test_exe)
-        else:
-            bwt = BandwidthTest()
-        bwt.measure_gpu_bw()
-        bwt_results = bwt.validate_results()
+    try:
+        if args.bw_test == True or args.run_all == True:
+            if args.bw_test_exe:
+                bwt = BandwidthTest(bw_test_exe=args.bw_test_exe)
+            else:
+                bwt = BandwidthTest()
+            bwt.measure_gpu_bw()
+            bwt_results = bwt.validate_results()
+    except Exception as e:
+        logger.warn(f"Failed to check GPU bandwidth with error: {e}")
+        bwt_results = None
 
     # Summarize the results
-    host_serial = get_host_serial()
+    try:
+        host_serial = get_host_serial()
+    except Exception as e:
+        logger.warn(f"Failed to get host serial number with error: {e}")
+        host_serial = "Unknown"
+
     logger.info(f"--------- Summary of H100 setup check for {host_serial} ---------")
-    if oca_version < "1.37.2":
-        logger.error(f"Oracle Cloud Agent: {oca_version} needs to be updated to 1.37.2 or higher")
+    if oca_version < "1.38.0":
+        logger.error(f"Oracle Cloud Agent: {oca_version} needs to be updated to 1.38.0 or higher")
     if len(rttcc_issues) > 0:
         logger.error(f"RTTCC issues: {rttcc_issues}")
     if len(ecc_issues) > 0:
