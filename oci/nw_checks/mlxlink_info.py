@@ -67,18 +67,18 @@ class MlxlinkInfo:
     def check_mlxlink_info(self, df):
         # Check to see if the link state is up
         df.loc[df['LinkState'] != 'Active', 'Status'] = 'Fail - LinkState = {}'.format(df['LinkState'])
-
-        # Check to see if the raw physical BER is lower than 1E-9
-        df.loc[df['RawPhyBER'] > 1e-9, 'Status'] = 'Fail - RawPhyBER > 1e-9' 
-        
-        # Check to see if FecBin6 > 0
-        df.loc[df['FecBin6'] > 0, 'Status'] = 'Watch - FecBin6 > 0'
         
         # loop through FecBin 7-15 and verify that they are all 0
         df.loc[df['FecBin0'] == -1 , 'Status'] = 'Fail - Check interface mapping'
-        df.loc[df['FecBin7'] > 0, 'Status'] = 'Fail - FecBin7 > 0'
-        df.loc[df['FecBin8'] > 0, 'Status'] = 'Fail - FecBin8 > 0'
-        df.loc[df['FecBin9'] > 0, 'Status'] = 'Fail - FecBin9 > 0'
+        df.loc[df['FecBin7'] > 0, 'Status'] = 'Watch - FecBin7 > 0'
+        df.loc[df['FecBin8'] > 0, 'Status'] = 'Watch - FecBin8 > 0'
+        df.loc[df['FecBin9'] > 0, 'Status'] = 'Watch - FecBin9 > 0'
+
+        # Check to see if the raw physical BER is lower than 1E-9
+        df.loc[df['RawPhyBER'] > 1e-9, 'Status'] = 'Fail - RawPhyBER > 1e-9' 
+
+        # Check to see if the effective physical errors are greather than 0
+        df.loc[df['EffPhyErrs'] > 0, 'Status'] = 'Fail - EffPhyErrs > 0'
 
         return df    
 
@@ -130,6 +130,8 @@ class MlxlinkInfo:
                         RawPhysicalErrorsPerLane1 = '-1'
                         RawPhysicalErrorsPerLane2 = '-1'
                         RawPhysicalErrorsPerLane3 = '-1'
+                        EffectivePhysicalErrors = '-1'
+                        EffectivePhysicalBER = '-1'
                         RawPhysicalBER = '1e-99'
                         LinkState = 'Unknown'
                         if 'result' in data:
@@ -187,10 +189,8 @@ class MlxlinkInfo:
                                             'hostname': host,
                                             'interface': mlx5_interface,
                                             'LinkState': LinkState,
-                                            'RawPhyErrsPerLane0': [RawPhysicalErrorsPerLane0],
-                                            'RawPhyErrsPerLane1': [RawPhysicalErrorsPerLane1],
-                                            'RawPhyErrsPerLane2': [RawPhysicalErrorsPerLane2],
-                                            'RawPhyErrsPerLane3': [RawPhysicalErrorsPerLane3],
+                                            'EffPhyErrs': [int(EffectivePhysicalErrors)],
+                                            'EffPhyBER': float(EffectivePhysicalBER),
                                             'RawPhyBER': float(RawPhysicalBER),
                                             'FecBin0': int(FecBin0),
                                             'FecBin1': int(FecBin1),
