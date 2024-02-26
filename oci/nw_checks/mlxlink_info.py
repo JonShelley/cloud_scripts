@@ -283,10 +283,13 @@ if __name__ == "__main__":
         # Filter the dataframe
         fail_df = df[df['Status'].str.contains('Fail')]
 
-        # Print the filtered dataframe
-        logging.info(f"\n{tabulate(fail_df, headers='keys', tablefmt='psql')}")
+        # Print the filtered dataframe if not empty
+        if not fail_df.empty:
+            logging.info(f"\n{tabulate(fail_df, headers='keys', tablefmt='simple_outline')}")
+        else:
+            logging.info(f"No errors found in the dataframe")
     else:
-        logging.info(f"\n{tabulate(df, headers='keys', tablefmt='psql')}")
+        logging.info(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
 
     # Log that we are saving the dataframe to a CSV file
     csv_filename = f'{hostname}_{date_stamp}_mlxlink_info.csv'
