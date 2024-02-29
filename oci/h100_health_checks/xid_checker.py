@@ -13,7 +13,10 @@ class XidChecker:
 
 
         # Check for the following GPU Xid errors in dmesg
-        self.XID_EC = {"48": {"description": "Double Bit ECC Error", "severity": "Critical"}, 
+        self.XID_EC = {
+                "13": {"description": "Graphics Engine Exception", "severity": "Critical"},
+                "31": {"description": "GPU memory page fault", "severity": "Critical"},    
+                "48": {"description": "Double Bit ECC Error", "severity": "Critical"}, 
                 "56": {"description": "Display Engine error", "severity": "Critical"},
                 "57": {"description": "Error programming video memory interface", "severity": "Critical"},
                 "58": {"description": "Unstable video memory interface detected", "severity": "Critical"},
