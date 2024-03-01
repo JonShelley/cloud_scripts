@@ -42,7 +42,7 @@ class MlxlinkInfo:
             logging.debug(f"{output.returncode}, Output: {output.stderr}")
             logging.debug(f"StdErr: {stderr_status}, {output.stderr}")
 
-            if output.returncode == 1 and stderr_status != -1:
+            if output.returncode == 1 and stderr_status == -1:
                 logging.debug("output.stdout is not json format")
                 data = {'status': {}, }
                 data['status']['code'] = output.returncode
@@ -136,6 +136,7 @@ class MlxlinkInfo:
                         EffectivePhysicalBER = '-1'
                         RawPhysicalBER = '1e-99'
                         LinkState = 'Unknown'
+                        Recommended = 'Unknown'
                         if 'result' in data:
                             RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
                             RawPhysicalErrorsPerLane0 = RawPhysicalErrorsPerLane[0]
@@ -211,6 +212,7 @@ class MlxlinkInfo:
                                             'FecBin13': int(FecBin13),
                                             'FecBin14': int(FecBin14),
                                             'FecBin15': int(FecBin15),
+                                            'Recommended': Recommended,
                                             'Status': 'Pass'
                                             })
 

@@ -40,6 +40,9 @@ class run_mlxlink_info:
         
     def setup_python_on_host(self, host, exe_file, script_directory, user):
         logging.debug(f'Setting up Python on {host}')
+        cmd = f'ssh {user}@{host} "sudo apt install -y python3-pip"'
+        logging.debug(cmd)
+        output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         cmd = f'ssh {user}@{host} "sudo pip3 install pandas numpy natsort Pyarrow tabulate"'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -89,7 +92,7 @@ class run_mlxlink_info:
             return {'host': host, 'cmd': ['collect_results_from_hosts'], 'status': 'Pass', 'output': output.stdout}
 
     def run_executable_on_hosts(self, task, hosts, exe_file, script_directory, user):
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
             future_to_task = {executor.submit(task, host, exe_file, script_directory, user): host for host in hosts}
             for future in concurrent.futures.as_completed(future_to_task):
                 data = future.result()
@@ -164,6 +167,7 @@ if __name__ == '__main__':
         if args.setup_host:
             logging.debug('Setting up the hosts')
             rmi.run_executable_on_hosts(rmi.setup_host, hosts, args.exe_file, args.script_directory, args.user)
+            logging.debug('Setting up Python on the hosts')
             rmi.run_executable_on_hosts(rmi.setup_python_on_host, hosts, args.exe_file, args.script_directory, args.user)
         if args.distribute:
             logging.debug('Distributing the executable to the hosts')
