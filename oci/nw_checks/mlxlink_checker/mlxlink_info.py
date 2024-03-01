@@ -109,6 +109,7 @@ class MlxlinkInfo:
                         EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
                         EffectivePhysicalBER = data['result']['output']['Physical Counters and BER Info']['Effective Physical BER']
                         VendorName = data['result']['output']['Module Info']['Vendor Name']
+                        VendorSerialNumber = data['result']['output']['Module Info']['Vendor Serial Number']
                         Recommended = data['result']['output']['Troubleshooting Info']['Recommendation']
                         LinkState = data['result']['output']['Operational Info']['State']
                         FecBin0 = data['result']['output']['Histogram of FEC Errors']['Bin 0']['values'][1]
@@ -137,6 +138,7 @@ class MlxlinkInfo:
                         RawPhysicalBER = '1e-99'
                         LinkState = 'Unknown'
                         Recommended = 'Unknown'
+                        VendorSerialNumber = 'Unknown'
                         if 'result' in data:
                             RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
                             RawPhysicalErrorsPerLane0 = RawPhysicalErrorsPerLane[0]
@@ -147,6 +149,7 @@ class MlxlinkInfo:
                             EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
                             EffectivePhysicalBER = data['result']['output']['Physical Counters and BER Info']['Effective Physical BER']
                             VendorName = data['result']['output']['Module Info']['Vendor Name']
+                            VendorSerialNumber = data['result']['output']['Module Info']['Vendor Serial Number']
                             Recommended = data['result']['output']['Troubleshooting Info']['Recommendation']
                             LinkState = data['result']['output']['Operational Info']['State']
                         if 'result' in data and 'Histogram of FEC Errors' in data['result']['output']:
@@ -193,15 +196,11 @@ class MlxlinkInfo:
                                             'interface': mlx5_interface,
                                             'ip_addr': data['ip_address'],
                                             'LinkState': LinkState,
+                                            'SerialNumber': VendorSerialNumber,
                                             'EffPhyErrs': [int(EffectivePhysicalErrors)],
                                             'EffPhyBER': float(EffectivePhysicalBER),
                                             'RawPhyBER': float(RawPhysicalBER),
                                             'FecBin0': int(FecBin0),
-                                            'FecBin1': int(FecBin1),
-                                            'FecBin2': int(FecBin2),
-                                            'FecBin3': int(FecBin3),
-                                            'FecBin4': int(FecBin4),
-                                            'FecBin5': int(FecBin5),
                                             'FecBin6': int(FecBin6),
                                             'FecBin7': int(FecBin7),
                                             'FecBin8': int(FecBin8),
