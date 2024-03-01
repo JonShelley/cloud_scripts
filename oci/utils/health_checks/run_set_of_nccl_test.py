@@ -5,11 +5,13 @@ from subprocess import TimeoutExpired
 import time
 from itertools import combinations
 import pandas as pd
+import numpy as np
 import warnings
 import math
 import argparse
 import concurrent.futures
 from  tabulate import tabulate
+from natsort import index_natsorted
 import logging
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -28,7 +30,7 @@ def run_mpi_command(args, hostfile, HPJ, timeout=300):
     mpirun_command += f" -x NCCL_IB_QPS_PER_CONNECTION=16 -x NCCL_IB_GID_INDEX=3 -x NCCL_IB_HCA=mlx5"
     mpirun_command += f" -x NCCL_IB_TC=41 -x NCCL_IB_SL=0 -x NCCL_IB_TIMEOUT=22 -x NCCL_NET_PLUGIN=none"
     mpirun_command += f" -x HCOLL_ENABLE_MCAST_ALL=0 -x coll_hcoll_enable=0 -x UCX_TLS=tcp -x UCX_NET_DEVICES=eth0"
-    mpirun_command += f" -x RX_QUEUE_LEN=8192 -x IB_RX_QUEUE_LEN=8192 -x NCCL_TOPO_FILE=/h100/topo.xml {args.nccl_test}"
+    mpirun_command += f" -x RX_QUEUE_LEN=8192 -x IB_RX_QUEUE_LEN=8192 -x NCCL_TOPO_FILE={args.nccl_topo_file} {args.nccl_test}"
     mpirun_command += f" -b {args.begin_size} -f 2 -g 1 -e {args.end_size} -c 1"
     logging.info(mpirun_command)
     try:
@@ -46,17 +48,19 @@ def run_mpi_command(args, hostfile, HPJ, timeout=300):
 
         logging.debug(f"Test executed on host set {hostfile} ran successfully. Msg Size: {tmp_data['msg_size']}, Result: {tmp_data['results']}")
         
-        row_data = {'HostSet': hostfile}
+        row_data = {'HostSet': [hostfile]}
         for msg_size, result in zip(tmp_data['msg_size'], tmp_data['results']):
             row_data[str(msg_size)] = result
-        results_df = results_df.append(row_data, ignore_index=True)
+        
     except TimeoutExpired:
-        logging.info("Command timed out after 5 minutes.")    
+        logging.info("Command timed out after 5 minutes.")   
+        row_data = {'HostSet': [hostfile]} 
     except subprocess.CalledProcessError as e:
         logging.info(f"Error executing command for {hostfile} using mpirun: {e}")
     except Exception as e:
         logging.info(f"An unexpected error occurred for job set {hostfile} --- {e}  ")
     time.sleep(wait)
+    results_df = pd.concat([results_df, pd.DataFrame(row_data)], ignore_index=True)
     logging.debug(f"Results: {results_df}")
     return results_df
 
@@ -80,36 +84,105 @@ def execute_command_in_sets_of_hosts_with_mpirun(args):
 
         #for host1, host2 in host_pairs:
         hostfiles = []
-        for i in range(0, len(hosts), HPJ):
-            if (i + HPJ) <= len(hosts):
-                # Generate sets of hosts to run the test on
-                job_hosts = hosts[i:i+HPJ]
+        if HPJ == 2:
+            host_pairs = create_circular_pairs(hosts)
+            logging.debug(f"Hosts: {host_pairs}")
+            for i in range(0, len(host_pairs)):
+                logging.debug(f"Hosts: {host_pairs[i]}")
+                host1 = host_pairs[i][0]
+                host2 = host_pairs[i][1]
+
+                idx1 = hosts.index(host1)
+                idx2 = hosts.index(host2)
+                
                 # Format the filename with leading zeros
-                file_num = '{0:03d}'.format(i)
-                hosts_filename = f'hostfile-{HPJ}n-{file_num}.txt'
+                idx1 = '{0:03d}'.format(idx1)
+                idx2 = '{0:03d}'.format(idx2)
+                node_num = '{0:03d}'.format(HPJ)
+                hosts_filename = f'hostfile-{node_num}n-{idx1}-{idx2}.txt'
                 with open(hosts_filename, 'w') as f:
-                    for host in job_hosts:
+                    for host in host_pairs[i]:
                         f.write(f'{host}\n')
-                hostfiles.append(hosts_filename)
+                    hostfiles.append(hosts_filename)
+            hostfile_list = []
+            if len(hostfiles) == 1:
+                hostfile_list.append(hostfiles)
+                logging.debug(f"{hostfiles}")
+            elif len(hostfiles)%2 == 0:
+                even_index_list = []
+                odd_index_list = []
+                for i in range(0, len(hostfiles), 2):
+                    even_index_list.append(hostfiles[i])
+                for i in range(1, len(hostfiles), 2):
+                    odd_index_list.append(hostfiles[i])
+                hostfile_list.append(even_index_list)
+                hostfile_list.append(odd_index_list)
+                logging.debug(f"{len(hostfile_list)}")
             else:
-                print(f"Skipping remaining hosts as there are not enough hosts to run the test.")
-                print(f"Remaining hosts: {hosts[i:]}")
-                break
+                if len(hostfiles) == 3:
+                    hostfile_list.append(hostfiles[0])
+                    hostfile_list.append(hostfiles[1])
+                    hostfile_list.append(hostfiles[2])
+                else:
+                    even_index_list = []
+                    odd_index_list = []
+                    for i in range(0, len(hostfiles)-1, 2):
+                        even_index_list.append(hostfiles[i])
+                    for i in range(1, len(hostfiles)-1, 2):
+                        odd_index_list.append(hostfiles[i])
+                    hostfile_list.append(even_index_list)
+                    hostfile_list.append(odd_index_list)
+                    hostfile_list.append(hostfiles[-1])
+                    logging.debug(f"{len(hostfile_list)}, {hostfile_list}")
+        else:
+            for i in range(0, len(hosts), HPJ):
+                if (i + HPJ) <= len(hosts):
+                    # Generate sets of hosts to run the test on
+                    job_hosts = hosts[i:i+HPJ]
+                    # Format the filename with leading zeros
+                    file_num = '{0:03d}'.format(i)
+                    node_num = '{0:03d}'.format(HPJ)
+                    hosts_filename = f'hostfile-{node_num}n-{file_num}.txt'
+                    with open(hosts_filename, 'w') as f:
+                        for host in job_hosts:
+                            f.write(f'{host}\n')
+                    hostfiles.append(hosts_filename)
+                else:
+                    logging.info(f"Skipping remaining hosts as there are not enough hosts to run the test.")
+                    logging.info(f"Remaining hosts: {hosts[i:]}")
+                    break
+            hostfile_list = [hostfiles]
+
         
         # Run through the host files in parallel
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            future_to_task = {executor.submit(run_mpi_command, args, hostfile, HPJ): hostfile for hostfile in hostfiles}
-            for future in concurrent.futures.as_completed(future_to_task):
-                results_df = future.result()
+        for hostfiles in hostfile_list:
+            logging.debug(f"Hostfiles: {hostfiles}")
+            with concurrent.futures.ThreadPoolExecutor(max_workers=64) as executor:
+                future_to_task = {executor.submit(run_mpi_command, args, hostfile, HPJ): hostfile for hostfile in hostfiles}
+                for future in concurrent.futures.as_completed(future_to_task):
+                    results_df = future.result()
 
-                # Append the results to the all_results_df
-                all_results_df = pd.concat([all_results_df, results_df], ignore_index=True)
+                    # Append the results to the all_results_df
+                    all_results_df = pd.concat([all_results_df, results_df], ignore_index=True)
+
+    # Sort the dataframe by interface
+    all_results_df.sort_values(by=['HostSet'])
+
+    # Sort the dataframe by interface
+    all_results_df = all_results_df.sort_values(
+        by="HostSet",
+        key=lambda x: np.argsort(index_natsorted(all_results_df["HostSet"]))
+    )
 
     # Generate a table report at the end using pandas
     logging.info("\nResults Report:")
     logging.info(f"\n{tabulate(all_results_df, headers='keys', tablefmt='simple_outline')}")
     
     all_results_df.to_csv('report.csv')
+
+def create_circular_pairs(lst):
+    return [[lst[i], lst[(i+1)%len(lst)]] for i in range(len(lst))]
+
  
 if __name__ == "__main__":
     # Create the parser
