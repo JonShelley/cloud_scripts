@@ -252,33 +252,33 @@ if __name__ == '__main__':
     try:
         oca_version = get_oca_version()
     except Exception as e:
-        logger.warn(f"Failed to get Oracle Cloud Agent version with error: {e}")
+        logger.warning(f"Failed to get Oracle Cloud Agent version with error: {e}")
         oca_version = "Unknown"
     try:
         rttcc_issues = check_rttcc_status()
     except Exception as e:
-        logger.warn(f"Failed to check RTTCC status with error: {e}")
+        logger.warning(f"Failed to check RTTCC status with error: {e}")
         rttcc_issues = []
 
     # Check for ECC errors
     try:
         ecc_issues = check_ecc_errors()
     except Exception as e:
-        logger.warn(f"Failed to check ECC errors with error: {e}")
+        logger.warning(f"Failed to check ECC errors with error: {e}")
         ecc_issues = []
     
     # Check for row remap errors
     try:
         remap_results = check_row_remap_errors()
     except Exception as e:
-        logger.warn(f"Failed to check row remap errors with error: {e}")
+        logger.warning(f"Failed to check row remap errors with error: {e}")
         remap_results = []
 
     # Check RDMA link status
     try:
         rdma_link_issues = check_rdma_link_status()
     except Exception as e:
-        logger.warn(f"Failed to check RDMA link status with error: {e}")
+        logger.warning(f"Failed to check RDMA link status with error: {e}")
         rdma_link_issues = []
     
     # Check for RDMA link flapping
@@ -287,7 +287,7 @@ if __name__ == '__main__':
         lft.get_rdma_link_failures()
         lft_issues = lft.process_rdma_link_flapping()
     except Exception as e:
-        logger.warn(f"Failed to check RDMA link flapping with error: {e}")
+        logger.warning(f"Failed to check RDMA link flapping with error: {e}")
         lft_issues = {"failures": [], "link_down": []}
 
     # Check for GPU Xid errors
@@ -295,7 +295,7 @@ if __name__ == '__main__':
         xc = XidChecker()
         xid_results = xc.check_gpu_xid()
     except Exception as e:
-        logger.warn(f"Failed to check GPU Xid errors with error: {e}")
+        logger.warning(f"Failed to check GPU Xid errors with error: {e}")
         xid_results = {"status": "None", "results": {}}
 
     # Check GPU bandwidth
@@ -309,14 +309,14 @@ if __name__ == '__main__':
             bwt.measure_gpu_bw()
             bwt_results = bwt.validate_results()
     except Exception as e:
-        logger.warn(f"Failed to check GPU bandwidth with error: {e}")
+        logger.warning(f"Failed to check GPU bandwidth with error: {e}")
         bwt_results = None
 
     # Summarize the results
     try:
         host_serial = get_host_serial()
     except Exception as e:
-        logger.warn(f"Failed to get host serial number with error: {e}")
+        logger.warning(f"Failed to get host serial number with error: {e}")
         host_serial = "Unknown"
 
     logger.info(f"--------- Summary of H100 setup check for {host_serial} ---------")
