@@ -255,6 +255,23 @@ def get_host_serial():
     # Return the serial number
     return output.strip()
 
+def check_bus():
+    # Check to see if any devices have fallen of the bus
+    command = ['lspci', '-v', '|', 'grep', '(rev ff)']
+    result = subprocess.run(command, stdout=subprocess.PIPE)
+    output = result.stdout.decode('utf-8')
+    if output:
+        logger.error(f"Devices have fallen off the bus: {output}")
+    else:
+        logger.info("No devices have fallen off the bus")
+    if len(output) == 0:
+        logger.info("Bus Check Test: Passed")
+        return(None)
+    else:
+        logger.warning("Bus Check Test: Failed")
+        return(output)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Check H100 setup')
     parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Set the logging level default: INFO")
@@ -331,6 +348,13 @@ if __name__ == '__main__':
         logger.warning(f"Failed to check GPU bandwidth with error: {e}")
         bwt_results = None
 
+    # Check the bus
+    try:
+        bus_results = check_bus()
+    except Exception as e:
+        logger.warning(f"Failed to check the bus with error: {e}")
+        bus_results = None
+
     # Summarize the results
     try:
         host_serial = get_host_serial()
@@ -376,6 +400,9 @@ if __name__ == '__main__':
         if bwt_results["status"] == "Failed":
             for issue in bwt_results["issues"]:
                 logger.error(f"{host_serial} - GPU bandwidth issues: {issue}")
+    if bus_results:
+        logger.error(f"{host_serial} - Bus issues: {bus_results}")
+
     datetime_str = datetime.now().strftime('%Y-%m-%d-%H%M%S')
     logger.info(f"Finished H100 setup check at: {datetime_str}")
     
