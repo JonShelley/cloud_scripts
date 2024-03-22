@@ -9,6 +9,7 @@ from gpu_bw_test import BandwidthTest
 from rdma_link_flapping import LinkFlappingTest
 from xid_checker import XidChecker
 import platform
+import os
 
 def is_user_root():
     # Check if the user is root
