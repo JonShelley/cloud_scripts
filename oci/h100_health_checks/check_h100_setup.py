@@ -249,8 +249,16 @@ if __name__ == '__main__':
 
     datetime_str = datetime.now().strftime('%Y-%m-%d-%H%M%S')
     logger.info(f"Started H100 setup check at: {datetime_str}")
-    oca_version = get_oca_version()
-    rttcc_issues = check_rttcc_status()
+    try:
+        oca_version = get_oca_version()
+    except Exception as e:
+        logger.warn(f"Failed to get Oracle Cloud Agent version with error: {e}")
+        oca_version = "Unknown"
+    try:
+        rttcc_issues = check_rttcc_status()
+    except Exception as e:
+        logger.warn(f"Failed to check RTTCC status with error: {e}")
+        rttcc_issues = []
 
     # Check for ECC errors
     try:
