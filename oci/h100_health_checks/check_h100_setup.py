@@ -10,6 +10,12 @@ from rdma_link_flapping import LinkFlappingTest
 from xid_checker import XidChecker
 import platform
 
+def is_user_root():
+    # Check if the user is root
+    if os.geteuid() != 0:
+        logger.debug("User is root")
+        return False
+    return True
 
 def get_oca_version():
     # Run the shell command
@@ -24,7 +30,10 @@ def get_oca_version():
             distro = distro.name()
 
         if 'Ubuntu' in distro:
-            result = subprocess.run(['sudo', 'snap', 'info', 'oracle-cloud-agent'], stdout=subprocess.PIPE)
+            if not is_user_root():
+                result = subprocess.run(['sudo', 'snap', 'info', 'oracle-cloud-agent'], stdout=subprocess.PIPE)
+            else:
+                result = subprocess.run(['snap', 'info', 'oracle-cloud-agent'], stdout=subprocess.PIPE)
             
             # Decode the output from bytes to string
             output = result.stdout.decode('utf-8')
@@ -48,8 +57,8 @@ def get_oca_version():
                 version = match.group(1)
 
    
-        if version < "1.37.2":
-            logger.error(f"Oracle Cloud Agent: {version} needs to be updated to 1.37.2 or higher")
+        if version < "1.38.0":
+            logger.error(f"Oracle Cloud Agent: {version} needs to be updated to 1.38.0 or higher")
         else:
             logger.info(f"Oracle Cloud Agent: {version}")
 
@@ -62,7 +71,10 @@ def check_rttcc_status():
     status = "disabled"
     status_dict = {"devices": {}}
     for device in devices:
-        command = ['sudo', 'mlxreg', '-d', device, '-y', '--set', 'cmd_type=3', '--reg_name=PPCC', '--indexes=local_port=1,pnat=0,lp_msb=0,algo_slot=0,algo_param_index=0']
+        if not is_user_root():
+            command = ['sudo', 'mlxreg', '-d', device, '-y', '--get', '--reg_name=PPCC', '--indexes=local_port=1,pnat=0,lp_msb=0,algo_slot=0,algo_param_index=0']   
+        else:
+            command = ['mlxreg', '-d', device, '-y', '--set', 'cmd_type=3', '--reg_name=PPCC', '--indexes=local_port=1,pnat=0,lp_msb=0,algo_slot=0,algo_param_index=0']
         result = subprocess.run(command, stdout=subprocess.PIPE)
         output = result.stdout.decode('utf-8')
         filtered_output = [line for line in output.split('\n') if line.startswith('value')]
@@ -178,7 +190,10 @@ def check_rdma_link_status():
     link_issues = []
     for device in devices:
         # Run the mlxlink command
-        command = ['sudo', 'mlxlink', '-d', device, '-m', '-c', '-e']
+        if not is_user_root():
+            command = ['sudo', 'mlxlink', '-d', device, '-m', '-c', '-e']
+        else:
+            command = ['mlxlink', '-d', device, '-m', '-c', '-e']
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         # Decode the output from bytes to string
@@ -228,7 +243,10 @@ def check_rdma_link_status():
 
 def get_host_serial():
     # Run the shell command
-    result = subprocess.run(['sudo', 'dmidecode', '-s', 'system-serial-number'], stdout=subprocess.PIPE)
+    if not is_user_root():
+        result = subprocess.run(['sudo', 'dmidecode', '-s', 'system-serial-number'], stdout=subprocess.PIPE)
+    else:
+        result = subprocess.run(['dmidecode', '-s', 'system-serial-number'], stdout=subprocess.PIPE)
 
     # Decode the output from bytes to string
     output = result.stdout.decode('utf-8')
