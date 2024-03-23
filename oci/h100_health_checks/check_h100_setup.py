@@ -307,6 +307,10 @@ def check_gpu_count():
             if line not in nvidia_smi_expected_results:
                 tmp_results.append(line)
                 logger.debug(f"Expected {line} not found in nvidia-smi output")
+        if len(tmp_results) == 0:
+            logger.info("GPU Count Test: Passed")
+        else:
+            logger.warning("GPU Count Test: Failed")
         return tmp_results
 
     except FileNotFoundError:
@@ -323,6 +327,10 @@ def check_gpu_count():
                     if line not in lspci_expected_results:
                         tmp_results.append(line)
                         logger.debug(f"Expected {line} not found in lspci output")
+            if len(tmp_results) == 0:
+                logger.info("GPU Count Test: Passed")
+            else:
+                logger.warning("GPU Count Test: Failed")
             return tmp_results
         except FileNotFoundError:
             logger.warning("Skipping GPU count test: nvidia-smi and lspci commands not found")
