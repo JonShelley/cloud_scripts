@@ -263,7 +263,7 @@ def check_bus():
     lines = output.split('\n')
     bus_issues = []
     for line in lines:
-        if line.find('(rev 08)') != -1:
+        if line.find('(rev ff)') != -1:
             bus_issues.append(line)
     if len(bus_issues) > 0:
         logger.error(f"Devices have fallen off the bus")
