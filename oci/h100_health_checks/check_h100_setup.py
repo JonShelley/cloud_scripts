@@ -257,19 +257,77 @@ def get_host_serial():
 
 def check_bus():
     # Check to see if any devices have fallen of the bus
-    command = ['lspci', '-v', '|', 'grep', '(rev ff)']
+    command = ['lspci', '-v']
     result = subprocess.run(command, stdout=subprocess.PIPE)
     output = result.stdout.decode('utf-8')
-    if output:
-        logger.error(f"Devices have fallen off the bus: {output}")
+    lines = output.split('\n')
+    bus_issues = []
+    for line in lines:
+        if line.find('(rev 08)') != -1:
+            bus_issues.append(line)
+    if len(bus_issues) > 0:
+        logger.error(f"Devices have fallen off the bus")
     else:
         logger.info("No devices have fallen off the bus")
-    if len(output) == 0:
+    if len(bus_issues) == 0:
         logger.info("Bus Check Test: Passed")
-        return(None)
+        return(bus_issues)
     else:
         logger.warning("Bus Check Test: Failed")
-        return(output)
+        return(bus_issues)
+    
+def check_gpu_count():
+
+    nvidia_smi_expected_results = [ 'GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-040e0e55-8046-e5cb-44d6-9ec30093be2a)',
+                                    'GPU 1: NVIDIA H100 80GB HBM3 (UUID: GPU-c0acf7cf-6191-5116-637d-10fe690604b1)',
+                                    'GPU 2: NVIDIA H100 80GB HBM3 (UUID: GPU-e723a1ef-630b-5de6-fe47-55a78edcd237)',
+                                    'GPU 3: NVIDIA H100 80GB HBM3 (UUID: GPU-9299aea0-0e94-6791-2d31-10988dffbd15)',
+                                    'GPU 4: NVIDIA H100 80GB HBM3 (UUID: GPU-228f3d33-3613-d03c-3a5b-18d6beaf5230)',
+                                    'GPU 5: NVIDIA H100 80GB HBM3 (UUID: GPU-80fe91ce-0d5a-a52f-580a-c0545a28fd33)',
+                                    'GPU 6: NVIDIA H100 80GB HBM3 (UUID: GPU-6a13f49f-5b96-c875-b348-0b4f1318c5bc)',
+                                    'GPU 7: NVIDIA H100 80GB HBM3 (UUID: GPU-8fa7bf1e-f0d1-6ae5-cd71-b97d2a2e6b9d)'
+                                  ]
+    lspci_expected_results = [  '0f:00.0 3D controller: NVIDIA Corporation Device 2330 (rev a1)',
+                                '2d:00.0 3D controller: NVIDIA Corporation Device 2330 (rev a1)',
+                                '44:00.0 3D controller: NVIDIA Corporation Device 2330 (rev a1)',
+                                '5b:00.0 3D controller: NVIDIA Corporation Device 2330 (rev a1)',
+                                '89:00.0 3D controller: NVIDIA Corporation Device 2330 (rev a1)',
+                                'a8:00.0 3D controller: NVIDIA Corporation Device 2330 (rev a1)',
+                                'c0:00.0 3D controller: NVIDIA Corporation Device 2330 (rev a1)',
+                                'd8:00.0 3D controller: NVIDIA Corporation Device 2330 (rev a1)' 
+                             ]
+
+    # Check the number of GPUs
+    try:
+        result = subprocess.run(['nvidia-smi', '--list-gpus'], stdout=subprocess.PIPE)
+        output = result.stdout.decode('utf-8')
+        lines = output.split('\n')
+        tmp_results = []
+        for line in lines:
+            if line not in nvidia_smi_expected_results:
+                tmp_results.append(line)
+                logger.debug(f"Expected {line} not found in nvidia-smi output")
+        return tmp_results
+
+    except FileNotFoundError:
+        try:
+            # Check if lspci is available
+            result = subprocess.run(['lspci', '-v'], stdout=subprocess.PIPE)
+            output = result.stdout.decode('utf-8')
+
+            # Check if the expected results are in the output
+            lines = output.split('\n')
+            tmp_results = []
+            for line in lines:
+                if line.find("NVIDIA") != -1 and line.find("2330") != -1:
+                    if line not in lspci_expected_results:
+                        tmp_results.append(line)
+                        logger.debug(f"Expected {line} not found in lspci output")
+            return tmp_results
+        except FileNotFoundError:
+            logger.warning("Skipping GPU count test: nvidia-smi and lspci commands not found")
+            return None
+
 
 
 if __name__ == '__main__':
@@ -354,6 +412,13 @@ if __name__ == '__main__':
     except Exception as e:
         logger.warning(f"Failed to check the bus with error: {e}")
         bus_results = None
+    
+    # Check the number of GPUs
+    try:
+        gpu_results = check_gpu_count()
+    except Exception as e:
+        logger.warning(f"Failed to check the number of GPUs with error: {e}")
+        gpu_results = None
 
     # Summarize the results
     try:
@@ -402,6 +467,8 @@ if __name__ == '__main__':
                 logger.error(f"{host_serial} - GPU bandwidth issues: {issue}")
     if bus_results:
         logger.error(f"{host_serial} - Bus issues: {bus_results}")
+    if gpu_results:
+        logger.error(f"{host_serial} - Missing GPU(s): {gpu_results}")
 
     datetime_str = datetime.now().strftime('%Y-%m-%d-%H%M%S')
     logger.info(f"Finished H100 setup check at: {datetime_str}")
