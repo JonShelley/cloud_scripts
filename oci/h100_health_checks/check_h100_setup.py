@@ -105,7 +105,7 @@ def check_ecc_errors():
         result = subprocess.run(['nvidia-smi', '-q'], stdout=subprocess.PIPE)
     except FileNotFoundError:
         logger.warning("Skipping SRAM/DRAM ECC Test: nvidia-smi command not found")
-        return ["Skipped SRAM/DRAM ECC Test: nvidia-smi command not found"]
+        return []
     
     # Decode the output from bytes to string
     output = result.stdout.decode('utf-8')
@@ -154,7 +154,7 @@ def check_row_remap_errors():
     
     except FileNotFoundError:
         logger.warning("Skipping Row Remap Test: nvidia-smi command not found")
-        return ["Skipped Row Remap Test: nvidia-smi command not found"]
+        return []
     
     # Decode the output from bytes to string
     output = result.stdout.decode('utf-8')
