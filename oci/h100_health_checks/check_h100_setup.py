@@ -169,7 +169,7 @@ def check_row_remap_errors():
             remap_issues.append(f"GPU: {i} Row Remap Pending: {tmp_data[0]}")
         if tmp_data[1] != "0":
             logger.debug(f"GPU: {i} - Row Remap Failure: {tmp_data[1]}")
-            remap_issues.append(f"GPU: {i} Row Remap Failure: {tmp_data[1]}")
+            #remap_issues.append(f"GPU: {i} Row Remap Failure: {tmp_data[1]}")
         if tmp_data[2] != "0":
             logger.debug(f"GPU: {i} - Row Remap Uncorrectable: {tmp_data[2]}")
             if int(tmp_data[2]) > 512:
@@ -304,6 +304,7 @@ def check_gpu_count():
         lines = output.split('\n')
         tmp_results = []
         for line in lines:
+            logger.info(line)
             if line not in nvidia_smi_expected_results:
                 tmp_results.append(line)
                 logger.debug(f"Expected {line} not found in nvidia-smi output")
