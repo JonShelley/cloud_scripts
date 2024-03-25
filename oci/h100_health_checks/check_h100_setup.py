@@ -278,15 +278,6 @@ def check_bus():
     
 def check_gpu_count():
 
-    nvidia_smi_expected_results = [ 'GPU 0: NVIDIA H100 80GB HBM3 (UUID: GPU-040e0e55-8046-e5cb-44d6-9ec30093be2a)',
-                                    'GPU 1: NVIDIA H100 80GB HBM3 (UUID: GPU-c0acf7cf-6191-5116-637d-10fe690604b1)',
-                                    'GPU 2: NVIDIA H100 80GB HBM3 (UUID: GPU-e723a1ef-630b-5de6-fe47-55a78edcd237)',
-                                    'GPU 3: NVIDIA H100 80GB HBM3 (UUID: GPU-9299aea0-0e94-6791-2d31-10988dffbd15)',
-                                    'GPU 4: NVIDIA H100 80GB HBM3 (UUID: GPU-228f3d33-3613-d03c-3a5b-18d6beaf5230)',
-                                    'GPU 5: NVIDIA H100 80GB HBM3 (UUID: GPU-80fe91ce-0d5a-a52f-580a-c0545a28fd33)',
-                                    'GPU 6: NVIDIA H100 80GB HBM3 (UUID: GPU-6a13f49f-5b96-c875-b348-0b4f1318c5bc)',
-                                    'GPU 7: NVIDIA H100 80GB HBM3 (UUID: GPU-8fa7bf1e-f0d1-6ae5-cd71-b97d2a2e6b9d)'
-                                  ]
     lspci_expected_results = [  '0f:00.0 3D controller: NVIDIA Corporation Device 2330 (rev a1)',
                                 '2d:00.0 3D controller: NVIDIA Corporation Device 2330 (rev a1)',
                                 '44:00.0 3D controller: NVIDIA Corporation Device 2330 (rev a1)',
@@ -303,15 +294,13 @@ def check_gpu_count():
         output = result.stdout.decode('utf-8')
         lines = output.split('\n')
         tmp_results = []
-        for line in lines:
-            logger.info(line)
-            if line not in nvidia_smi_expected_results:
-                tmp_results.append(line)
-                logger.debug(f"Expected {line} not found in nvidia-smi output")
-        if len(tmp_results) == 0:
+        # remove empty lines
+        lines = [line for line in lines if line]
+        if len(lines) == 8:
             logger.info("GPU Count Test: Passed")
         else:
             logger.warning("GPU Count Test: Failed")
+            tmp_results.append(f"Expected 8 GPUs, found {len(lines)} using nvidia-smi command")
         return tmp_results
 
     except FileNotFoundError:
