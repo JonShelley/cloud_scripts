@@ -314,10 +314,13 @@ def check_gpu_count():
             tmp_results = []
             for line in lines:
                 if line.find("NVIDIA") != -1 and line.find("2330") != -1:
-                    if line not in lspci_expected_results:
-                        tmp_results.append(line)
-                        logger.debug(f"Expected {line} not found in lspci output")
-            if len(tmp_results) == 0:
+                    tmp_results.append(line)
+            if not len(tmp_results) == 8:
+                logger.debug(f"Expected 8 GPUs, found {len(tmp_results)} in lspci output")
+                for line in lspci_expected_results:
+                    if line not in tmp_results:
+                        tmp_results.append(f"Missing GPU: {line}")
+            if len(tmp_results) == 8:
                 logger.info("GPU Count Test: Passed")
             else:
                 logger.warning("GPU Count Test: Failed")
