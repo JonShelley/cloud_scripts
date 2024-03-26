@@ -15,35 +15,66 @@ import subprocess
 logging.basicConfig(level=logging.DEBUG)
 
 class run_mlxlink_info:
-    def __init__(self, date_stamp=None):
+    def __init__(self, args):
         self.status_df = pd.DataFrame()
         self.results_df = pd.DataFrame()
-        if date_stamp is None:
+        if args.date_stamp is None:
             self.date_stamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
         else:
-            self.date_stamp = date_stamp
+            self.date_stamp = args.date_stamp
+        self.nfs = args.nfs
+        self.venv = args.venv
+        self.ber_threshold = args.ber_threshold
+        self.eff_threshold = args.eff_threshold
+        self.script_directory = args.script_directory
+        self.hostfile = args.hostfile
+        self.exe_file = args.exe_file
+        self.user = args.user
+        self.max_workers = args.max_workers    
 
     def get_date_stamp(self):
         return self.date_stamp
 
-    def setup_host(self, host, exe_file, script_directory, user):
-        logging.debug(f'Setting up {host}')
-        cmd = f'ssh {user}@{host} "mkdir -p {script_directory}"'
-        logging.debug(cmd)
-        output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        if output.returncode != 0:
-            logging.debug(f'Error setting up {host}')
-            return {'host': host, 'cmd': ['setup_host'], 'status': 'Fail', 'output': output.stderr}
+    def setup_host(self, host):
+        if self.nfs:
+            logging.debug(f'Setting up {host} for nfs')
+            # if self.script_directory does not exist, create it
+            if not os.path.exists(self.script_directory):
+                status = os.mkdir(self.script_directory)
+                if status != 0:
+                    logging.debug(f'Error setting up nfs {host}')
+                    return {'host': host, 'cmd': ['setup_host'], 'status': 'Fail', 'output': f'Error setting up {host}'}
+                else:
+                    logging.debug(f'Successfully set up nfs {host}')
+                    return {'host': host, 'cmd': ['setup_host'], 'status': 'Pass', 'output': f'Successfully set up {host}'}
         else:
-            logging.debug(f'Successfully set up {host}')
-            return {'host': host, 'cmd': ['setup_host'], 'status': 'Pass', 'output': output.stdout}
-        
-    def setup_python_on_host(self, host, exe_file, script_directory, user):
+            logging.debug(f'Setting up {host}')
+            cmd = f'ssh {self.user}@{host} "mkdir -p {self.script_directory}"'
+            logging.debug(cmd)
+            output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            if output.returncode != 0:
+                logging.debug(f'Error setting up {host}')
+                return {'host': host, 'cmd': ['setup_host'], 'status': 'Fail', 'output': output.stderr}
+            else:
+                logging.debug(f'Successfully set up {host}')
+                return {'host': host, 'cmd': ['setup_host'], 'status': 'Pass', 'output': output.stdout}
+            
+    def setup_python_on_host(self, host):
+        cmd_py_setup = "sudo apt install -y python3-pip python3-venv"
+        if self.nfs:
+            logging.debug(f'Setting up Python on {host} for nfs')
+            if self.venv:
+                # Check to see if the venv exists
+                test_venv = f'test -d {self.venv}'
+                if test_venv.returncode != 0:
+                    cmd_py_setup = f'{cmd_py_setup}; python3 -m venv {self.venv}'
+                    cmd_py_setup = f'{cmd_py_setup}; source {self.venv}/bin/activate'
+                    cmd_py_setup = f'{cmd_py_setup}; pip3 install pandas numpy natsort Pyarrow tabulate'
         logging.debug(f'Setting up Python on {host}')
-        cmd = f'ssh {user}@{host} "sudo apt install -y python3-pip"'
+        cmd = f'ssh {self.user}@{host} "{cmd_py_setup}"'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        cmd = f'ssh {user}@{host} "sudo pip3 install pandas numpy natsort Pyarrow tabulate"'
+        cmd = f'ssh {self.user}@{host} "sudo pip3 install pandas numpy natsort Pyarrow tabulate"'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
@@ -53,35 +84,35 @@ class run_mlxlink_info:
             logging.debug(f'Successfully set up Python on {host}')
             return {'host': host, 'cmd': ['setup_python_on_host'], 'status': 'Pass', 'output': output.stdout}
     
-    def distribute_file_to_host(self, host, exe_file, script_directory, user):
-        logging.debug(f'Distributing {exe_file} to {host}')
-        cmd = f'scp {exe_file} {user}@{host}:{script_directory}'
+    def distribute_file_to_host(self, host):
+        logging.debug(f'Distributing {self.exe_file} to {host}')
+        cmd = f'scp {self.exe_file} {self.user}@{host}:{self.script_directory}'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
-            logging.debug(f'Error distributing {exe_file} to {host}')
+            logging.debug(f'Error distributing {self.exe_file} to {host}')
             return {'host': host, 'cmd': ['distribute_file_to_hosts'], 'status': 'Fail', 'output': output.stderr}
         else:
-            logging.debug(f'Successfully distributed {exe_file} to {host}')
+            logging.debug(f'Successfully distributed {self.exe_file} to {host}')
             return {'host': host, 'cmd': ['distribute_file_to_hosts'], 'status': 'Pass', 'output': output.stdout}
 
-    def execute_file_on_host(self, host, exe_file, script_directory, user):
-        logging.debug(f'Executing {exe_file} on {host}')
-        cmd = f'ssh {user}@{host} "cd {script_directory}; python3 ./{exe_file} --date_stamp {self.date_stamp} -a {host}"'
+    def execute_file_on_host(self, host):
+        logging.debug(f'Executing {self.exe_file} on {host}')
+        cmd = f'ssh {self.user}@{host} "cd {self.script_directory}; python3 {self.exe_file} --date_stamp {self.date_stamp} -a {host} --ber_threshold {self.ber_threshold} --eff_threshold {self.eff_threshold} "'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
-            logging.debug(f'Error executing {exe_file} on {host}')
+            logging.debug(f'Error executing {self.exe_file} on {host}')
             return {'host': host, 'cmd': ['execute_file_on_hosts'], 'status': 'Fail', 'output': output.stderr}
         else:
-            logging.debug(f'Successfully executed {exe_file} on {host}')
+            logging.debug(f'Successfully executed {self.exe_file} on {host}')
             return {'host': host, 'cmd': ['execute_file_on_hosts'], 'status': 'Pass', 'output': output.stdout}
         
 
-    def collect_results_from_host(self, host, exe_file, script_directory, user):
+    def collect_results_from_host(self, host):
         logging.debug(f'Collecting results from {host}')
         csv_filename = f'mlxlink_info_{host}_{self.date_stamp}.csv'
-        cmd = f'scp {user}@{host}:{script_directory}/{csv_filename} .'
+        cmd = f'scp {self.user}@{host}:{self.script_directory}/{csv_filename} .'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
@@ -91,9 +122,9 @@ class run_mlxlink_info:
             logging.debug(f'Successfully collected results from {host}')
             return {'host': host, 'cmd': ['collect_results_from_hosts'], 'status': 'Pass', 'output': output.stdout}
 
-    def run_executable_on_hosts(self, task, hosts, exe_file, script_directory, user):
-        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_task = {executor.submit(task, host, exe_file, script_directory, user): host for host in hosts}
+    def run_executable_on_hosts(self, task, hosts):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            future_to_task = {executor.submit(task, host): host for host in hosts}
             for future in concurrent.futures.as_completed(future_to_task):
                 data = future.result()
                 logging.debug(f"Data: {data}")
@@ -132,24 +163,27 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
 
     # Add the arguments
-    parser.add_argument('--hostfile', type=str, help='the hostfile name')
-    parser.add_argument('-f', '--exe_file', type=str, help='the executable file')
-    parser.add_argument('--script_directory', type=str, help='the script directory')
+    parser.add_argument('--hostfile', type=str, default='hostfile.txt', help='the hostfile name')
+    parser.add_argument('-f', '--exe_file', type=str, default='mlxlink_info.py', help='the executable file')
+    parser.add_argument('--script_directory', type=str, default='cloud_scripts/oci/nw_checks/mlxlink_checker', help='the script directory')
     parser.add_argument('-s', '--setup_host', action='store_true', help='setup the host to run mlxlink_info')
     parser.add_argument('-d', '--distribute', action='store_true', help='distribute the executable file to the remote hosts')
     parser.add_argument('-e', '--execute', action='store_true', help='execute the executable file on the remote hosts')
     parser.add_argument('-c', '--collect', action='store_true', help='collect the results from the remote hosts')
-    parser.add_argument('-u', '--user', type=str, help='the user name')
+    parser.add_argument('-u', '--user', default="ubuntu", type=str, help='the user name')
     parser.add_argument('--date_stamp', default=None, type=str, help='the date stamp')
+    parser.add_argument('--nfs', action='store_true', help='script directory is NFS mounted (default: %(default)s)')
+    parser.add_argument('--venv', type=str, default='', help='specify the python virtual environment to use')
+    parser.add_argument('--ber_threshold', type=str, default='1e-9', help='specify the BER threshold')
+    parser.add_argument('--eff_threshold', type=str, default='0', help='specify the BER threshold')
+    parser.add_argument('--max_workers', type=int, default=32, help='specify the maximum number of workers (default: %(default)s)')
 
     # Execute the parse_args() method
     args = parser.parse_args()
 
     hostfile = args.hostfile
-    exe_file = args.exe_file
-    script_directory = args.script_directory
 
-    rmi = run_mlxlink_info(args.date_stamp)
+    rmi = run_mlxlink_info(args)
 
     # Read the hostfile
     with open(hostfile, 'r') as f:
@@ -166,12 +200,12 @@ if __name__ == '__main__':
     with concurrent.futures.ThreadPoolExecutor() as executor:
         if args.setup_host:
             logging.debug('Setting up the hosts')
-            rmi.run_executable_on_hosts(rmi.setup_host, hosts, args.exe_file, args.script_directory, args.user)
+            rmi.run_executable_on_hosts(rmi.setup_host, hosts)
             logging.debug('Setting up Python on the hosts')
-            rmi.run_executable_on_hosts(rmi.setup_python_on_host, hosts, args.exe_file, args.script_directory, args.user)
+            rmi.run_executable_on_hosts(rmi.setup_python_on_host, hosts)
         if args.distribute:
             logging.debug('Distributing the executable to the hosts')
-            rmi.run_executable_on_hosts(rmi.distribute_file_to_host, hosts, exe_file, script_directory, args.user)
+            rmi.run_executable_on_hosts(rmi.distribute_file_to_host, hosts)
         if args.execute:
             # Make results directory
             results_directory = f'results_{rmi.get_date_stamp()}'
@@ -179,11 +213,11 @@ if __name__ == '__main__':
                 os.mkdir(results_directory)
 
             logging.debug('Executing the executable on the hosts')
-            rmi.run_executable_on_hosts(rmi.execute_file_on_host, hosts, exe_file, script_directory, args.user)
+            rmi.run_executable_on_hosts(rmi.execute_file_on_host, hosts)
 
             logging.debug('Collecting the results from the hosts')
             os.chdir(results_directory)
-            rmi.run_executable_on_hosts(rmi.collect_results_from_host, hosts, exe_file, script_directory, args.user)
+            rmi.run_executable_on_hosts(rmi.collect_results_from_host, hosts)
 
             # Process the results
             print('Processing the results')

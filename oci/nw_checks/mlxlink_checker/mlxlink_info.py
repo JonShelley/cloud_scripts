@@ -19,15 +19,49 @@ import os
 
 
 class MlxlinkInfo:
-    def __init__(self, address=None):
-        self.address = address
+    def __init__(self, args):
+        # Set the timestamp
+        if args.date_stamp:
+            self.date_stamp = args.date_stamp
+        else:
+            self.date_stamp = datetime.now().strftime('%Y%m%d%H%M%S')
+        if args.address:
+            self.address = args.address
+        else:
+            self.address = None
+        self.ber_threshold = args.ber_threshold
+        self.eff_threshold = args.eff_threshold
+
         self.mlx5_interfaces = [0,1,3,4,5,6,7,8,9,10,12,13,14,15,16,17]
         #self.mlx5_interfaces = [15,17]
         self.timeout = 60
+        self.host_info = {}
+
+        self._collect_host_info()
+
+    # Get host info number
+    def _collect_host_info(self):
+        try:
+            # Run the shell command
+            result = subprocess.run(['sudo', 'dmidecode', '-s', 'system-serial-number'], stdout=subprocess.PIPE)
+
+            # Decode the output from bytes to string
+            output = result.stdout.decode('utf-8')
+            self.host_info['serial'] = output.strip()
+        except Exception as e:
+            logging.info(f"Error getting host serial: {e}")
+            self.host_info['serial'] = 'Unknown'
+        
+        # Get the hostname and add it to the data
+        hostname = socket.gethostname()
+        self.host_info['hostname'] = hostname
+    
+    def get_host_info(self):
+        return self.host_info
 
     # Retrieve a single page and report the URL and contents
     def get_mlxlink_info(self, mlx5_inter, timeout):
-        cmd = f"sudo mlxlink -m -e -c --json -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --json"
+        cmd = f"sudo mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --json"
         logging.debug(f"Running command: {cmd}")
 
         # Run the command and capture the output
@@ -42,7 +76,7 @@ class MlxlinkInfo:
             logging.debug(f"{output.returncode}, Output: {output.stderr}")
             logging.debug(f"StdErr: {stderr_status}, {output.stderr}")
 
-            if output.returncode == 1 and stderr_status == -1:
+            if output.returncode == 1 and stderr_status != -1:
                 logging.debug("output.stdout is not json format")
                 data = {'status': {}, }
                 data['status']['code'] = output.returncode
@@ -58,13 +92,15 @@ class MlxlinkInfo:
         data['mlx5_interface'] = f"{mlx5_inter}"
         data['ip_address'] = self.address
 
-        # Get the hostname and add it to the data
-        hostname = socket.gethostname()
-        data['hostname'] = hostname
+        # Add the hostname to the data
+        data['hostname'] = self.host_info['hostname']
 
         logging.debug(f"Data: {type(data)} - {data}")
 
         return data
+    
+    def get_date_stamp(self):
+        return self.date_stamp
     
     def check_mlxlink_info(self, df):
         # Check to see if the link state is up
@@ -77,10 +113,10 @@ class MlxlinkInfo:
         df.loc[df['FecBin9'] > 0, 'Status'] = 'Watch - FecBin9 > 0'
 
         # Check to see if the raw physical BER is lower than 1E-9
-        df.loc[df['RawPhyBER'] > 1e-9, 'Status'] = 'Fail - RawPhyBER > 1e-9' 
+        df.loc[df['RawPhyBER'] > float(self.ber_threshold), 'Status'] = 'Fail - RawPhyBER > {}'.format(self.ber_threshold) 
 
         # Check to see if the effective physical errors are greather than 0
-        df.loc[df['EffPhyErrs'] > 0, 'Status'] = 'Fail - EffPhyErrs > 0'
+        df.loc[df['EffPhyErrs'] > int(self.eff_threshold), 'Status'] = 'Fail - EffPhyErrs > {}'.format(self.eff_threshold)
 
         return df    
 
@@ -189,14 +225,16 @@ class MlxlinkInfo:
 
                     # Set the dataframe vars
                     mlx5_interface = data['mlx5_interface']
-                    host = data['hostname']
+                    host = self.host_info['hostname']
+                    host_serial = self.host_info['serial']
 
                     temp_df = pd.DataFrame({
                                             'hostname': host,
-                                            'interface': mlx5_interface,
                                             'ip_addr': data['ip_address'],
                                             'LinkState': LinkState,
-                                            'SerialNumber': VendorSerialNumber,
+                                            'HostSerial': host_serial,
+                                            'CableSerial': VendorSerialNumber,
+                                            'mlx5_': mlx5_interface,
                                             'EffPhyErrs': [int(EffectivePhysicalErrors)],
                                             'EffPhyBER': float(EffectivePhysicalBER),
                                             'RawPhyBER': float(RawPhysicalBER),
@@ -225,8 +263,8 @@ class MlxlinkInfo:
 
         # Sort the dataframe by interface
         df = df.sort_values(
-            by="interface",
-            key=lambda x: np.argsort(index_natsorted(df["interface"]))
+            by="mlx5_",
+            key=lambda x: np.argsort(index_natsorted(df["mlx5_"]))
         )
 
         # Print the dataframe
@@ -243,18 +281,17 @@ if __name__ == "__main__":
     parser.add_argument('--date_stamp', type=str, help='The data file to use')
     parser.add_argument('-q', '--quiet', action='store_true', help='Suppress output to the console (default: %(default)s)')
     parser.add_argument('-a', '--address', type=str, help='The ip address of the remote host')
+    parser.add_argument('--ber_threshold', type=str, default='1e-9', help='specify the Raw Physical BER threshold')
+    parser.add_argument('--eff_threshold', type=str, default='0', help='specify the Effective Physical Error threshold')
 
     # Parse the arguments
     args = parser.parse_args()
 
-    # Save the dataframe to a CSV file
-    hostname = socket.gethostname()
+    # Create the MlxlinkInfo object
+    mlxlink_info = MlxlinkInfo(args)
 
-    # Set the timestamp
-    if args.date_stamp:
-        date_stamp = args.date_stamp
-    else:
-        date_stamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    # Get the host info
+    host_info = mlxlink_info.get_host_info()
 
     # Set the logging level
     numeric_level = getattr(logging, args.log.upper(), None)
@@ -263,16 +300,13 @@ if __name__ == "__main__":
     
     # Set the log file
     if args.quiet:
-        log_filename = f'{hostname}_mlxlink_info.log'
+        log_filename = f"{host_info['hostname']}_mlxlink_info.log"
         logging.basicConfig(filename=log_filename, 
                             format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
                             datefmt='%H:%M:%S',
                             level=numeric_level)
     else:
         logging.basicConfig(level=numeric_level)
-
-    # Create the MlxlinkInfo object
-    mlxlink_info = MlxlinkInfo(args.address)
 
     # Collect the mlxlink info
     df = mlxlink_info.gather_mlxlink_info()
@@ -281,7 +315,7 @@ if __name__ == "__main__":
     df = mlxlink_info.check_mlxlink_info(df)
 
     # Sort the dataframe by interface
-    df.sort_values(by=['hostname', 'interface'])
+    df.sort_values(by=['hostname', 'mlx5_'])
 
     # Tabulate the df
     if args.error:
@@ -297,6 +331,6 @@ if __name__ == "__main__":
         logging.info(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
 
     # Log that we are saving the dataframe to a CSV file
-    csv_filename = f'mlxlink_info_{args.address}_{date_stamp}.csv'
+    csv_filename = f'mlxlink_info_{args.address}_{mlxlink_info.get_date_stamp()}.csv'
     df.to_csv(csv_filename, index=False)
     logging.debug(f"Dataframe saved to {csv_filename}")
