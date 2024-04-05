@@ -5,6 +5,7 @@ from shared_logging import logger
 import subprocess
 import sys
 import re
+import os
 
 class XidChecker:
     def __init__(self, dmesg_cmd="dmesg", time_interval=60):
