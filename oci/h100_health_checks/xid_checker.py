@@ -11,10 +11,10 @@ class XidChecker:
     def __init__(self, dmesg_cmd="dmesg", time_interval=60):
         # if user is root
         if not os.geteuid() == 0:
+            logger.error("The XidChecker script must be run as root")
+            sys.exit(1)
             self.dmesg_cmd = dmesg_cmd
-        else:
-            # try to use sudo
-            self.dmesg_cmd = f"sudo {dmesg_cmd}"
+       
         self.results = {}
 
 
@@ -167,7 +167,7 @@ class XidChecker:
 
     def check_gpu_xid(self):
         status = "Pass"
-        dmesg_output = subprocess.check_output([self.dmesg_cmd], timeout=15).decode("utf-8")
+        dmesg_output = subprocess.check_output([self.dmesg_cmd]).decode("utf-8")
         if "NVRM: Xid" in dmesg_output:
             for XID in self.XID_EC.keys():
                 logger.debug(f"Checking for GPU Xid {XID} error in dmesg")
