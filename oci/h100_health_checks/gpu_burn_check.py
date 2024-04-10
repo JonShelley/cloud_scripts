@@ -187,8 +187,14 @@ def main(args,gpu_burn_dir,host_info):
     else:
         logging.info(f"GPU BURN Test: Passed")
 
-    # Write the dataframe to a JSON file
-    df.to_json(f"{host_info['hostname']}_gpu_burn_results.json", orient='records')
+    if args.file_format == 'csv':
+        # Write the dataframe to a CSV file
+        df.to_csv(f"{host_info['hostname']}_gpu_burn_results.csv", index=False)
+    elif args.file_format == 'json':
+        # Write the dataframe to a JSON file
+        df.to_json(f"{host_info['hostname']}_gpu_burn_results.json", orient='records')
+    else:
+        logging.error(f"Invalid file format: {args.file_format}")
 
     return results
 
@@ -202,6 +208,7 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--error', action='store_true', help='Error reporting (default: %(default)s')
     parser.add_argument('-q', '--quiet', action='store_true', help='Suppress output to the console (default: %(default)s)')
     parser.add_argument('--gpu_burn_dir', default='/opt/oci-hpc/gpu-burn', help='Set the GPU burn directory (default: %(default)s)')
+    parser.add_argument('--file_format', default='json', help='Set the output file format: csv,json (default: %(default)s)
 
     # Execute the parse_args() method
     args = parser.parse_args()
