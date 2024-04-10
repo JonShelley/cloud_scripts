@@ -208,7 +208,7 @@ if __name__ == "__main__":
     parser.add_argument('-e', '--error', action='store_true', help='Error reporting (default: %(default)s')
     parser.add_argument('-q', '--quiet', action='store_true', help='Suppress output to the console (default: %(default)s)')
     parser.add_argument('--gpu_burn_dir', default='/opt/oci-hpc/gpu-burn', help='Set the GPU burn directory (default: %(default)s)')
-    parser.add_argument('--file_format', default='json', help='Set the output file format: csv,json (default: %(default)s)
+    parser.add_argument('--file_format', default='json', help='Set the output file format: csv,json (default: %(default)s')
 
     # Execute the parse_args() method
     args = parser.parse_args()
