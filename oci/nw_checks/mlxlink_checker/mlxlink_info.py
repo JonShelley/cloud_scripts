@@ -80,7 +80,7 @@ class MlxlinkInfo:
                 logging.debug("output.stdout is not json format")
                 data = {'status': {}, }
                 data['status']['code'] = output.returncode
-                data['status']['message'] = 'fail'
+                data['status']['message'] = 'Failed'
             else:
                 logging.debug("output.stdout is json format")
                 data = json.loads(output.stdout)
@@ -104,19 +104,19 @@ class MlxlinkInfo:
     
     def check_mlxlink_info(self, df):
         # Check to see if the link state is up
-        df.loc[df['LinkState'] != 'Active', 'Status'] = 'Fail - LinkState = {}'.format(df['LinkState'])
+        df.loc[df['LinkState'] != 'Active', 'Status'] = 'Failed - LinkState = {}'.format(df['LinkState'])
         
         # loop through FecBin 7-15 and verify that they are all 0
-        df.loc[df['FecBin0'] == -1 , 'Status'] = 'Fail - Check interface mapping'
+        df.loc[df['FecBin0'] == -1 , 'Status'] = 'Failed - Check interface mapping'
         df.loc[df['FecBin7'] > 0, 'Status'] = 'Watch - FecBin7 > 0'
         df.loc[df['FecBin8'] > 0, 'Status'] = 'Watch - FecBin8 > 0'
         df.loc[df['FecBin9'] > 0, 'Status'] = 'Watch - FecBin9 > 0'
 
         # Check to see if the raw physical BER is lower than 1E-9
-        df.loc[df['RawPhyBER'] > float(self.ber_threshold), 'Status'] = 'Fail - RawPhyBER > {}'.format(self.ber_threshold) 
+        df.loc[df['RawPhyBER'] > float(self.ber_threshold), 'Status'] = 'Failed - RawPhyBER > {}'.format(self.ber_threshold) 
 
         # Check to see if the effective physical errors are greather than 0
-        df.loc[df['EffPhyErrs'] > int(self.eff_threshold), 'Status'] = 'Fail - EffPhyErrs > {}'.format(self.eff_threshold)
+        df.loc[df['EffPhyErrs'] > int(self.eff_threshold), 'Status'] = 'Failed - EffPhyErrs > {}'.format(self.eff_threshold)
 
         return df    
 
@@ -250,7 +250,7 @@ class MlxlinkInfo:
                                             'FecBin14': int(FecBin14),
                                             'FecBin15': int(FecBin15),
                                             'Recommended': Recommended,
-                                            'Status': 'Pass'
+                                            'Status': 'Passed'
                                             })
 
 #                    # Append the dataframe to the main dataframe
@@ -283,6 +283,7 @@ if __name__ == "__main__":
     parser.add_argument('-a', '--address', type=str, help='The ip address of the remote host')
     parser.add_argument('--ber_threshold', type=str, default='1e-7', help='specify the Raw Physical BER threshold')
     parser.add_argument('--eff_threshold', type=str, default='0', help='specify the Effective Physical Error threshold')
+    parser.add_argument('--file_format', type=str, default='json', help='specify the output file format: csv,json (default: %(default)s)
 
     # Parse the arguments
     args = parser.parse_args()
@@ -320,7 +321,7 @@ if __name__ == "__main__":
     # Tabulate the df
     if args.error:
         # Filter the dataframe
-        fail_df = df[df['Status'].str.contains('Fail')]
+        fail_df = df[df['Status'].str.contains('Failed')]
 
         # Print the filtered dataframe if not empty
         if not fail_df.empty:
@@ -330,7 +331,15 @@ if __name__ == "__main__":
     else:
         logging.info(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
 
-    # Log that we are saving the dataframe to a CSV file
-    csv_filename = f'mlxlink_info_{args.address}_{mlxlink_info.get_date_stamp()}.csv'
-    df.to_csv(csv_filename, index=False)
-    logging.debug(f"Dataframe saved to {csv_filename}")
+    if args.file_format == 'json':
+        # Write the dataframe to a JSON file
+        json_filename = f'mlxlink_info_{args.address}_{mlxlink_info.get_date_stamp()}.json'
+        df.to_json(json_filename, orient='records')
+        logging.debug(f"Dataframe saved to {json_filename}")
+    elif args.file_format == 'csv':
+        # Log that we are saving the dataframe to a CSV file
+        csv_filename = f'mlxlink_info_{args.address}_{mlxlink_info.get_date_stamp()}.csv'
+        df.to_csv(csv_filename, index=False)
+        logging.debug(f"Dataframe saved to {csv_filename}")
+    else:
+        logging.error(f"Invalid file format: {args.file_format}")
