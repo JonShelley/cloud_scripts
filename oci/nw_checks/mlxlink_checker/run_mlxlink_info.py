@@ -112,8 +112,8 @@ class run_mlxlink_info:
 
     def collect_results_from_host(self, host):
         logging.debug(f'Collecting results from {host}')
-        csv_filename = f'mlxlink_info_{host}_{self.date_stamp}.csv'
-        cmd = f'scp -P {self.port} {self.user}@{host}:{self.script_directory}/{csv_filename} .'
+        filename = f'mlxlink_info_{host}_{self.date_stamp}.json'
+        cmd = f'scp -P {self.port} {self.user}@{host}:{self.script_directory}/{filename} .'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
@@ -138,14 +138,14 @@ class run_mlxlink_info:
         # list the current directory
         logging.debug(f'ls: {os.listdir()}')
 
-        files = glob.glob('mlxlink_info_*.csv')
+        files = glob.glob('mlxlink_info_*.json')
 
         # Create an empty DataFrame to store results
         df = pd.DataFrame()
 
         # Read in the files
         for file in files:
-            new_df = pd.read_csv(file)
+            new_df = pd.read_json(file)
             df = pd.concat([df, new_df])
         
         # Print out results that failed
