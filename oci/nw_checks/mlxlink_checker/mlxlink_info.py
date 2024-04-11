@@ -2,6 +2,7 @@
 
 # Note: sudo pip3 install pandas numpy natsort Pyarrow tabulate
 
+import traceback
 import subprocess
 import pandas as pd
 import numpy as np
@@ -17,6 +18,12 @@ import sys
 import time
 import os
 
+import logging.config
+
+logging.config.fileConfig('logging.conf')
+
+# create logger
+logger = logging.getLogger('simpleExample')
 
 class MlxlinkInfo:
     def __init__(self, args):
@@ -43,15 +50,36 @@ class MlxlinkInfo:
     def _collect_host_info(self):
         try:
             # Run the shell command
-            result = subprocess.run(['sudo', 'dmidecode', '-s', 'system-serial-number'], stdout=subprocess.PIPE)
+            # Check to see if dmidecode command is available
+            cmd = "/usr/bin/which dmidecode"
+            result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            if result.returncode != 0:
+                logging.error(f"dmidecode command not found {cmd}")
+                cmd = "chroot /host dmidecode -s system-serial-number"
+                result2 = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+                if result2.returncode != 0:
+                    logging.error(f"Error getting host serial: {cmd}")
+                    self.host_info['serial'] = 'Unknown'
+                else:
+                    output = result2.stdout
+                    logging.info(f"Host serial: {output}")
+                    self.host_info['serial'] = output.strip()
+            else:
+                # If user is root, remove sudo from the command
+                if os.geteuid() == 0:
+                    cmd = "dmidecode -s system-serial-number"
+                else:
+                    cmd = "sudo dmidecode -s system-serial-number"
+                result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
-            # Decode the output from bytes to string
-            output = result.stdout.decode('utf-8')
-            self.host_info['serial'] = output.strip()
+                # Decode the output from bytes to string
+                output = result.stdout
+                self.host_info['serial'] = output.strip()
         except Exception as e:
             logging.info(f"Error getting host serial: {e}")
+            logging.info(traceback.format_exc())
             self.host_info['serial'] = 'Unknown'
-        
+
         # Get the hostname and add it to the data
         hostname = socket.gethostname()
         self.host_info['hostname'] = hostname
@@ -61,7 +89,20 @@ class MlxlinkInfo:
 
     # Retrieve a single page and report the URL and contents
     def get_mlxlink_info(self, mlx5_inter, timeout):
-        cmd = f"sudo mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --json"
+        # Check if mlxlink is installed
+        cmd = "mlxlink --version"
+        output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        if output.returncode != 0:
+            logging.error(f"mlxlink command not found")
+            cmd = "chroot /host mlxlink --version"
+            output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            if output.returncode != 0:
+                logging.error(f"mlxlink command not found")
+                sys.exit(1)
+            else:
+                cmd = f"chroot /host mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --json"
+        else:
+            cmd = f"sudo mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --json"
         logging.debug(f"Running command: {cmd}")
 
         # Run the command and capture the output
@@ -88,7 +129,7 @@ class MlxlinkInfo:
             logging.debug(f"Command output: {output.stdout}")
             # Parse the output as JSON and convert it to a dataframe
             data = json.loads(output.stdout)
-            
+
         data['mlx5_interface'] = f"{mlx5_inter}"
         data['ip_address'] = self.address
 
@@ -107,7 +148,7 @@ class MlxlinkInfo:
         df.loc[df['LinkState'] != 'Active', 'Status'] = 'Failed - LinkState = {}'.format(df['LinkState'])
         
         # loop through FecBin 7-15 and verify that they are all 0
-        df.loc[df['FecBin0'] == -1 , 'Status'] = 'Failed - Check interface mapping'
+        df.loc[df['FecBin0'] == -1 , 'Status'] = 'Failed - Check link'
         df.loc[df['FecBin7'] > 0, 'Status'] = 'Watch - FecBin7 > 0'
         df.loc[df['FecBin8'] > 0, 'Status'] = 'Watch - FecBin8 > 0'
         df.loc[df['FecBin9'] > 0, 'Status'] = 'Watch - FecBin9 > 0'
@@ -135,7 +176,9 @@ class MlxlinkInfo:
                     logging.debug(data)
                     CMD_Status = data['status']['code']
                     CMD_Status_msg = data['status']['message']
+                    logging.info(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
                     if CMD_Status == 0:
+                        logging.info(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
                         RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
                         RawPhysicalErrorsPerLane0 = RawPhysicalErrorsPerLane[0]
                         RawPhysicalErrorsPerLane1 = RawPhysicalErrorsPerLane[1]
@@ -148,22 +191,35 @@ class MlxlinkInfo:
                         VendorSerialNumber = data['result']['output']['Module Info']['Vendor Serial Number']
                         Recommended = data['result']['output']['Troubleshooting Info']['Recommendation']
                         LinkState = data['result']['output']['Operational Info']['State']
-                        FecBin0 = data['result']['output']['Histogram of FEC Errors']['Bin 0']['values'][1]
-                        FecBin1 = data['result']['output']['Histogram of FEC Errors']['Bin 1']['values'][1]
-                        FecBin2 = data['result']['output']['Histogram of FEC Errors']['Bin 2']['values'][1]
-                        FecBin3 = data['result']['output']['Histogram of FEC Errors']['Bin 3']['values'][1]
-                        FecBin4 = data['result']['output']['Histogram of FEC Errors']['Bin 4']['values'][1]
-                        FecBin5 = data['result']['output']['Histogram of FEC Errors']['Bin 5']['values'][1]
-                        FecBin6 = data['result']['output']['Histogram of FEC Errors']['Bin 6']['values'][1]
-                        FecBin7 = data['result']['output']['Histogram of FEC Errors']['Bin 7']['values'][1]
-                        FecBin8 = data['result']['output']['Histogram of FEC Errors']['Bin 8']['values'][1]
-                        FecBin9 = data['result']['output']['Histogram of FEC Errors']['Bin 9']['values'][1]
-                        FecBin10 = data['result']['output']['Histogram of FEC Errors']['Bin 10']['values'][1]
-                        FecBin11 = data['result']['output']['Histogram of FEC Errors']['Bin 11']['values'][1]
-                        FecBin12 = data['result']['output']['Histogram of FEC Errors']['Bin 12']['values'][1]
-                        FecBin13 = data['result']['output']['Histogram of FEC Errors']['Bin 13']['values'][1]
-                        FecBin14 = data['result']['output']['Histogram of FEC Errors']['Bin 14']['values'][1]
-                        FecBin15 = data['result']['output']['Histogram of FEC Errors']['Bin 15']['values'][1]
+                        if 'result' in data and 'Histogram of FEC Errors' in data['result']['output']:
+                            FecBin0 = data['result']['output']['Histogram of FEC Errors']['Bin 0']['values'][1]
+                            FecBin6 = data['result']['output']['Histogram of FEC Errors']['Bin 6']['values'][1]
+                            FecBin7 = data['result']['output']['Histogram of FEC Errors']['Bin 7']['values'][1]
+                            FecBin8 = data['result']['output']['Histogram of FEC Errors']['Bin 8']['values'][1]
+                            FecBin9 = data['result']['output']['Histogram of FEC Errors']['Bin 9']['values'][1]
+                            FecBin10 = data['result']['output']['Histogram of FEC Errors']['Bin 10']['values'][1]
+                            FecBin11 = data['result']['output']['Histogram of FEC Errors']['Bin 11']['values'][1]
+                            FecBin12 = data['result']['output']['Histogram of FEC Errors']['Bin 12']['values'][1]
+                            FecBin13 = data['result']['output']['Histogram of FEC Errors']['Bin 13']['values'][1]
+                            FecBin14 = data['result']['output']['Histogram of FEC Errors']['Bin 14']['values'][1]
+                            FecBin15 = data['result']['output']['Histogram of FEC Errors']['Bin 15']['values'][1]
+                        else:
+                            FecBin0 = "-1"
+                            FecBin1 = "-1"
+                            FecBin2 = "-1"
+                            FecBin3 = "-1"
+                            FecBin4 = "-1"
+                            FecBin5 = "-1"
+                            FecBin6 = "-1"
+                            FecBin7 = "-1"
+                            FecBin8 = "-1"
+                            FecBin9 = "-1"
+                            FecBin10 = "-1"
+                            FecBin11 = "-1"
+                            FecBin12 = "-1"
+                            FecBin13 = "-1"
+                            FecBin14 = "-1"
+                            FecBin15 = "-1"
                     else:
                         RawPhysicalErrorsPerLane0 = '-1'
                         RawPhysicalErrorsPerLane1 = '-1'
@@ -176,11 +232,6 @@ class MlxlinkInfo:
                         Recommended = 'Unknown'
                         VendorSerialNumber = 'Unknown'
                         if 'result' in data:
-                            RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
-                            RawPhysicalErrorsPerLane0 = RawPhysicalErrorsPerLane[0]
-                            RawPhysicalErrorsPerLane1 = RawPhysicalErrorsPerLane[1]
-                            RawPhysicalErrorsPerLane2 = RawPhysicalErrorsPerLane[2]
-                            RawPhysicalErrorsPerLane3 = RawPhysicalErrorsPerLane[3]
                             RawPhysicalBER = data['result']['output']['Physical Counters and BER Info']['Raw Physical BER']
                             EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
                             EffectivePhysicalBER = data['result']['output']['Physical Counters and BER Info']['Effective Physical BER']
@@ -228,6 +279,21 @@ class MlxlinkInfo:
                     host = self.host_info['hostname']
                     host_serial = self.host_info['serial']
 
+                    try:
+                        int(EffectivePhysicalErrors)
+                    except:
+                        EffectivePhysicalErrors = -1
+                    
+                    try:
+                        float(EffectivePhysicalBER)
+                    except:
+                        EffectivePhysicalBER = -1.0
+                    
+                    try:
+                        float(RawPhysicalBER)
+                    except:
+                        RawPhysicalBER = -1.0
+
                     temp_df = pd.DataFrame({
                                             'hostname': host,
                                             'ip_addr': data['ip_address'],
@@ -258,6 +324,7 @@ class MlxlinkInfo:
                     logging.debug(f"Appended data for {mlx5_interface} to dataframe")
                 except Exception as exc:
                     logging.info('%r generated an exception: %s' % (mlx5_interface, exc))
+                    logging.info(traceback.format_exc())
                 else:
                     logging.debug('mlx5_%r data collected' % (mlx5_interface))
 
@@ -293,21 +360,6 @@ if __name__ == "__main__":
 
     # Get the host info
     host_info = mlxlink_info.get_host_info()
-
-    # Set the logging level
-    numeric_level = getattr(logging, args.log.upper(), None)
-    if not isinstance(numeric_level, int):
-        raise ValueError(f'Invalid log level: {args.log}')
-    
-    # Set the log file
-    if args.quiet:
-        log_filename = f"{host_info['hostname']}_mlxlink_info.log"
-        logging.basicConfig(filename=log_filename, 
-                            format='%(asctime)s,%(msecs)d %(name)s %(levelname)s %(message)s',
-                            datefmt='%H:%M:%S',
-                            level=numeric_level)
-    else:
-        logging.basicConfig(level=numeric_level)
 
     # Collect the mlxlink info
     df = mlxlink_info.gather_mlxlink_info()
