@@ -149,7 +149,7 @@ class run_mlxlink_info:
             df = pd.concat([df, new_df])
         
         # Print out results that failed
-        fail_df = df[df['Status'].str.contains('Fail')]
+        fail_df = df[df['status'].str.contains('Failed')]
 
         # Print out the results
         if not fail_df.empty:
