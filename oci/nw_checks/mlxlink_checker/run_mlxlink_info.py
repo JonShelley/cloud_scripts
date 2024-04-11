@@ -30,7 +30,8 @@ class run_mlxlink_info:
         self.hostfile = args.hostfile
         self.exe_file = args.exe_file
         self.user = args.user
-        self.max_workers = args.max_workers    
+        self.max_workers = args.max_workers
+        self.port = args.port 
 
     def get_date_stamp(self):
         return self.date_stamp
@@ -49,7 +50,7 @@ class run_mlxlink_info:
                     return {'host': host, 'cmd': ['setup_host'], 'status': 'Pass', 'output': f'Successfully set up {host}'}
         else:
             logging.debug(f'Setting up {host}')
-            cmd = f'ssh {self.user}@{host} "mkdir -p {self.script_directory}"'
+            cmd = f'ssh -p {self.port} {self.user}@{host} "mkdir -p {self.script_directory}"'
             logging.debug(cmd)
             output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
             if output.returncode != 0:
@@ -71,10 +72,10 @@ class run_mlxlink_info:
                     cmd_py_setup = f'{cmd_py_setup}; source {self.venv}/bin/activate'
                     cmd_py_setup = f'{cmd_py_setup}; pip3 install pandas numpy natsort Pyarrow tabulate'
         logging.debug(f'Setting up Python on {host}')
-        cmd = f'ssh {self.user}@{host} "{cmd_py_setup}"'
+        cmd = f'ssh -p {self.port} {self.user}@{host} "{cmd_py_setup}"'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        cmd = f'ssh {self.user}@{host} "sudo pip3 install pandas numpy natsort Pyarrow tabulate"'
+        cmd = f'ssh -p {self.port} {self.user}@{host} "sudo pip3 install pandas numpy natsort Pyarrow tabulate"'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
@@ -98,7 +99,7 @@ class run_mlxlink_info:
 
     def execute_file_on_host(self, host):
         logging.debug(f'Executing {self.exe_file} on {host}')
-        cmd = f'ssh {self.user}@{host} "cd {self.script_directory}; python3 {self.exe_file} --date_stamp {self.date_stamp} -a {host} --ber_threshold {self.ber_threshold} --eff_threshold {self.eff_threshold} "'
+        cmd = f'ssh -p {self.port} {self.user}@{host} "cd {self.script_directory}; python3 {self.exe_file} --date_stamp {self.date_stamp} -a {host} --ber_threshold {self.ber_threshold} --eff_threshold {self.eff_threshold} "'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
@@ -177,6 +178,7 @@ if __name__ == '__main__':
     parser.add_argument('--ber_threshold', type=str, default='1e-9', help='specify the BER threshold')
     parser.add_argument('--eff_threshold', type=str, default='0', help='specify the BER threshold')
     parser.add_argument('--max_workers', type=int, default=32, help='specify the maximum number of workers (default: %(default)s)')
+    parser.add_argument('-p', '--port', type=int, default=22, help='specify the ssh port number (default: %(default)s)'
 
     # Execute the parse_args() method
     args = parser.parse_args()
