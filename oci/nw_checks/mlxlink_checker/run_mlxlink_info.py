@@ -178,7 +178,7 @@ if __name__ == '__main__':
     parser.add_argument('--ber_threshold', type=str, default='1e-9', help='specify the BER threshold')
     parser.add_argument('--eff_threshold', type=str, default='0', help='specify the BER threshold')
     parser.add_argument('--max_workers', type=int, default=32, help='specify the maximum number of workers (default: %(default)s)')
-    parser.add_argument('-p', '--port', type=int, default=22, help='specify the ssh port number (default: %(default)s)'
+    parser.add_argument('-p', '--port', type=int, default=22, help='specify the ssh port number (default: %(default)s)')
 
     # Execute the parse_args() method
     args = parser.parse_args()
