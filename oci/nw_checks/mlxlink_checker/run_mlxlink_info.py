@@ -87,7 +87,7 @@ class run_mlxlink_info:
     
     def distribute_file_to_host(self, host):
         logging.debug(f'Distributing {self.exe_file} to {host}')
-        cmd = f'scp {self.exe_file} {self.user}@{host}:{self.script_directory}'
+        cmd = f'scp -P {self.port} {self.exe_file} {self.user}@{host}:{self.script_directory}'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
@@ -113,7 +113,7 @@ class run_mlxlink_info:
     def collect_results_from_host(self, host):
         logging.debug(f'Collecting results from {host}')
         csv_filename = f'mlxlink_info_{host}_{self.date_stamp}.csv'
-        cmd = f'scp {self.user}@{host}:{self.script_directory}/{csv_filename} .'
+        cmd = f'scp -P {self.port} {self.user}@{host}:{self.script_directory}/{csv_filename} .'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
