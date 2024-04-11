@@ -155,9 +155,17 @@ class run_mlxlink_info:
         if not fail_df.empty:
             logging.info('The following hosts have issues')
             logging.info(f"\n{tabulate(fail_df, headers='keys', tablefmt='simple_outline')}")
+            # Write out the failed hosts to a file
+            fail_df.to_csv(f'failed_hosts_{self.date_stamp}.csv', index=False)
+            fail_df.to_json(f'failed_hosts_{self.date_stamp}.json', orient='records')
         else:
             logging.info('All tests passed')
             logging.info(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
+        
+        # Write out the results to a file
+        df.to_csv('run_mlxlink_info_{self.date_stamp}.csv', index=False)
+        df.to_json('run_mlxlink_info_{self.date_stamp}.json', orient='records')
+
 
 if __name__ == '__main__':
     # Create the parser
