@@ -178,13 +178,13 @@ def main(args,gpu_burn_dir,host_info):
 
     if args.error and not fail_df.empty:
         # Print the filtered dataframe if not empty
-        logging.info(f"\n{tabulate(fail_df, headers='keys', tablefmt='simple_outline')}")
+        logging.error(f"\n{tabulate(fail_df, headers='keys', tablefmt='simple_outline')}")
     else:
         logging.info(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
     
     if not fail_df.empty:
         logging.error(f"GPU BURN Test: Failed")
-        logging.error(f"fail_df: {fail_df}")
+        #logging.error(f"fail_df: {fail_df}")
     else:
         logging.info(f"GPU BURN Test: Passed")
 
