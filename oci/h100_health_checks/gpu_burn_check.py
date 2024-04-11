@@ -116,7 +116,7 @@ def parse_gpu_burn_output(input, host_info):
     
     results["max_gflops"] = np.max(gflops)
     results["max_temp"] = np.max(temps)
-    results["status"] = "Pass"
+    results["status"] = "Passed"
 
     logging.debug(f"results: {results}")
     df = pd.DataFrame(results)
@@ -160,8 +160,8 @@ def check_gpu_burn_results(df):
     avg_temp_threshold = 80
 
     # Check GPU burn results
-    df.loc[df['max_gflops'] < max_gflops_threshold, 'status'] = f'Fail - GFlops > {max_gflops_threshold}'
-    df.loc[df['max_temp'] > avg_temp_threshold, 'status'] = f'Fail - Temp > {avg_temp_threshold}'
+    df.loc[df['max_gflops'] < max_gflops_threshold, 'status'] = f'Failed - GFlops > {max_gflops_threshold}'
+    df.loc[df['max_temp'] > avg_temp_threshold, 'status'] = f'Failed - Temp > {avg_temp_threshold}'
 
     return df
 
@@ -174,7 +174,7 @@ def main(args,gpu_burn_dir,host_info):
 
     # Tabulate the df
     # Filter the dataframe
-    fail_df = df[df['status'].str.contains('Fail')]
+    fail_df = df[df['status'].str.contains('Failed')]
 
     if args.error and not fail_df.empty:
         # Print the filtered dataframe if not empty
@@ -184,6 +184,7 @@ def main(args,gpu_burn_dir,host_info):
     
     if not fail_df.empty:
         logging.error(f"GPU BURN Test: Failed")
+        logging.error(f"fail_df: {fail_df}")
     else:
         logging.info(f"GPU BURN Test: Passed")
 
