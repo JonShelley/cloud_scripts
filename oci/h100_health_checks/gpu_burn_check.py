@@ -13,6 +13,12 @@ from  tabulate import tabulate
 from natsort import index_natsorted
 import argparse
 import socket
+import logging.config
+
+logging.config.fileConfig('logging.conf')
+
+# create logger
+logger = logging.getLogger('simpleExample')
 
 base_dir = os.getcwd()
 
