@@ -30,10 +30,10 @@ def get_host_info():
         # If root remove sudo from the command
         if os.geteuid() == 0:
             # Check to see if dmidecode command is available
-            result = subprocess.run(['which', 'dmidecode'], stdout=subprocess.PIPE)
+            result = subprocess.run(['which', 'dmidecode'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
             if result.returncode != 0:
                 logging.error("dmidecode command not found")
-                result2 = subprocess.run(['chroot', '/host', 'dmidecode', '-s', 'system-serial-number'], stdout=subprocess.PIPE)
+                result2 = subprocess.run(['chroot', '/host', 'dmidecode', '-s', 'system-serial-number'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
                 if result2.returncode != 0:
                     logging.error("Error getting host serial")
                     host_info['serial'] = 'Unknown'
@@ -41,9 +41,9 @@ def get_host_info():
                     output = result2.stdout.decode('utf-8')
                     host_info['serial'] = output.strip()
 
-            result = subprocess.run(['dmidecode', '-s', 'system-serial-number'], stdout=subprocess.PIPE)
+            result = subprocess.run(['dmidecode', '-s', 'system-serial-number'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         else:
-            result = subprocess.run(['sudo', 'dmidecode', '-s', 'system-serial-number'], stdout=subprocess.PIPE)
+            result = subprocess.run(['sudo', 'dmidecode', '-s', 'system-serial-number'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         
         # Decode the output from bytes to string
         if 'serial' not in host_info:
