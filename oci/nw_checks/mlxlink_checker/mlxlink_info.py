@@ -15,8 +15,8 @@ import argparse
 from datetime import datetime
 from  tabulate import tabulate
 import sys
-import time
 import os
+import re
 
 import logging.config
 
@@ -43,8 +43,77 @@ class MlxlinkInfo:
         #self.mlx5_interfaces = [15,17]
         self.timeout = 60
         self.host_info = {}
+        self.flap_duration_threshold = 3600*6
+        self.flap_startup_wait_time = 1800
 
         self._collect_host_info()
+
+    def check_for_flaps(self):
+        # Check system uptime
+        cmd = "uptime -s"
+        output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        logging.debug(f"Uptime: {output.stdout}")
+        date_str = output.stdout.strip()
+        uptime_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+
+        # Get rdma info to see how the interface names are mapped
+        cmd = "chroot /host rdma link show"
+        output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        if output.returncode != 0:
+            logging.error(f"Error getting rdma info")
+            return {}
+        # Define the pattern
+        pattern = r"(mlx5_\d+)/\d+ state (\w+) physical_state (\w+) netdev (\w+)"
+
+        rdma_dict = {}
+        for line in output.stdout.split('\n'):
+            match = re.search(pattern, line)
+            if match:
+                logging.debug(f"Match: {match.group(1)}")
+                rdma_dict[match.group(4)] = match.group(1)
+        logging.info(f"rdma_dict: {rdma_dict}")
+
+        # Check to see if dmesg command is available
+        cmd = "chroot /host dmesg -T| grep -E 'mlx5_'"
+        output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        if output.returncode != 0:
+            logging.error(f"Error getting dmesg info")
+            return {}
+        
+        logging.debug(f"dmesg: {output.stdout}")
+        # Check for link down events
+        link_dict = {}
+        for line in output.stdout.split('\n'):
+            if "mlx5_" in line and "link down" in line.lower():
+                logging.error(f"Link down event: {line}")
+
+                # Define the pattern
+                pattern = r"\[(\w{3} \w{3} \d{2} \d{2}:\d{2}:\d{2} \d{4})\].*(rdma\d+): Link (\w+)"
+
+                # Search for the date, rdma interface, and link status
+                match = re.search(pattern, line)
+
+                # If a match was found, print it
+                if match:
+                    link_flap_time = datetime.strptime(match.group(1), "%a %b %d %H:%M:%S %Y")
+                    mlx_interface = match.group(2)
+                    link_status = match.group(3)
+                    mlx_interface = rdma_dict[mlx_interface]
+                    logging.info(f"Date and Time: {link_flap_time}, Interface: {mlx_interface}, Link Status: {link_status}")
+                    
+                    # Check to see if the link flap time is within the last x hours
+                    if (datetime.now() - link_flap_time).total_seconds() < self.flap_duration_threshold:
+                        # Check to see if the link_flap_time > than system uptime + 30 minutes
+                        if (link_flap_time - uptime_date).total_seconds() > self.flap_startup_wait_time:
+                            logging.debug(f"Link flap detected within the last hour: {link_flap_time}")
+                            if mlx_interface not in link_dict:
+                                link_dict[mlx_interface] = {"last_flap_time": link_flap_time, "flap_count": 1}
+                            else:
+                                link_dict[mlx_interface]["flap_count"] += 1
+                                link_dict[mlx_interface]["last_flap_time"] = link_flap_time
+        
+        logging.info(f"Link flaps: {link_dict}")
+        return link_dict
 
     # Get host info number
     def _collect_host_info(self):
@@ -147,23 +216,23 @@ class MlxlinkInfo:
         # Check to see if the link state is up
         df.loc[df['LinkState'] != 'Active', 'Status'] = 'Failed - LinkState = {}'.format(df['LinkState'])
         
-        # loop through FecBin 7-15 and verify that they are all 0
-        df.loc[df['FecBin0'] == -1 , 'Status'] = 'Failed - Check link'
-        df.loc[df['FecBin7'] > 0, 'Status'] = 'Watch - FecBin7 > 0'
-        df.loc[df['FecBin8'] > 0, 'Status'] = 'Watch - FecBin8 > 0'
-        df.loc[df['FecBin9'] > 0, 'Status'] = 'Watch - FecBin9 > 0'
-
         # Check to see if the raw physical BER is lower than 1E-9
         df.loc[df['RawPhyBER'] > float(self.ber_threshold), 'Status'] = 'Failed - RawPhyBER > {}'.format(self.ber_threshold) 
 
         # Check to see if the effective physical errors are greather than 0
         df.loc[df['EffPhyErrs'] > int(self.eff_threshold), 'Status'] = 'Failed - EffPhyErrs > {}'.format(self.eff_threshold)
 
+        # Check to see if the link has flapped
+        df.loc[df['flap_count'] > 0, 'Status'] = 'Failed - Link Flap Detected'
+
         return df    
 
     def gather_mlxlink_info(self):
         # Create an empty dataframe
         df = pd.DataFrame()
+
+        # Check for link flaps
+        link_flaps = self.check_for_flaps()
 
         # We can use a with statement to ensure threads are cleaned up promptly
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -294,6 +363,15 @@ class MlxlinkInfo:
                     except:
                         RawPhysicalBER = -1.0
 
+                    tmp_name = f"mlx5_{mlx5_interface}"
+                    if tmp_name in link_flaps:
+                        logging.debug(f"Link flap detected: {mlx5_interface}")
+                        flap_count = link_flaps[tmp_name]['flap_count']
+                        last_flap_time = link_flaps[tmp_name]['last_flap_time']
+                    else:
+                        flap_count = 0
+                        last_flap_time = None
+
                     temp_df = pd.DataFrame({
                                             'hostname': host,
                                             'ip_addr': data['ip_address'],
@@ -304,17 +382,8 @@ class MlxlinkInfo:
                                             'EffPhyErrs': [int(EffectivePhysicalErrors)],
                                             'EffPhyBER': float(EffectivePhysicalBER),
                                             'RawPhyBER': float(RawPhysicalBER),
-                                            'FecBin0': int(FecBin0),
-                                            'FecBin6': int(FecBin6),
-                                            'FecBin7': int(FecBin7),
-                                            'FecBin8': int(FecBin8),
-                                            'FecBin9': int(FecBin9),
-                                            'FecBin10': int(FecBin10),
-                                            'FecBin11': int(FecBin11),
-                                            'FecBin12': int(FecBin12),
-                                            'FecBin13': int(FecBin13),
-                                            'FecBin14': int(FecBin14),
-                                            'FecBin15': int(FecBin15),
+                                            'flap_count': flap_count,
+                                            'last_flap_time': last_flap_time,
                                             'Recommended': Recommended,
                                             'Status': 'Passed'
                                             })
@@ -343,7 +412,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Gather mlxlink info")
 
     # Add the logging level argument
-    parser.add_argument('-l', '--log', default='info', help='Set the logging level (default: %(default)s)')
+    parser.add_argument('-l', '--log', default='critical', help='Set the logging level (default: %(default)s)')
     parser.add_argument('-e', '--error', action='store_true', help='Set the error reporting')
     parser.add_argument('--date_stamp', type=str, help='The data file to use')
     parser.add_argument('-q', '--quiet', action='store_true', help='Suppress output to the console (default: %(default)s)')
@@ -354,6 +423,9 @@ if __name__ == "__main__":
 
     # Parse the arguments
     args = parser.parse_args()
+
+    # Set the log level to one of the following: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    logging.getLogger().setLevel(args.log.upper())
 
     # Create the MlxlinkInfo object
     mlxlink_info = MlxlinkInfo(args)
@@ -369,6 +441,9 @@ if __name__ == "__main__":
 
     # Sort the dataframe by interface
     df.sort_values(by=['hostname', 'mlx5_'])
+
+    # Set the logging level to INFO
+    logging.getLogger().setLevel('INFO')
 
     # Tabulate the df
     if args.error:
