@@ -196,10 +196,10 @@ def main(args,gpu_burn_dir,host_info):
 
     if args.file_format == 'csv':
         # Write the dataframe to a CSV file
-        df.to_csv(f"gpu_burn_{host_info['hostname']}_results.csv", index=False)
+        df.to_csv(f"gpu_burn_{host_info['hostname']}_results_{args.date_stamp}.csv", index=False)
     elif args.file_format == 'json':
         # Write the dataframe to a JSON file
-        df.to_json(f"gpu_burn_{host_info['hostname']}_results.json", orient='records')
+        df.to_json(f"gpu_burn_{host_info['hostname']}_results_{args.date_stamp}.json", orient='records')
     else:
         logging.error(f"Invalid file format: {args.file_format}")
 
@@ -216,6 +216,8 @@ if __name__ == "__main__":
     parser.add_argument('-q', '--quiet', action='store_true', help='Suppress output to the console (default: %(default)s)')
     parser.add_argument('--gpu_burn_dir', default='/opt/oci-hpc/gpu-burn', help='Set the GPU burn directory (default: %(default)s)')
     parser.add_argument('--file_format', default='json', help='Set the output file format: csv,json (default: %(default)s')
+    parser.add_argument('--gflops_threshold', type=int, default=40000, help='Set the GFlops threshold (default: %(default)s)')
+    parser.add_argument('--date_stamp', type=str, help='The data file to use')
 
     # Execute the parse_args() method
     args = parser.parse_args()

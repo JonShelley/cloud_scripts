@@ -103,7 +103,7 @@ class run_gpu_burn:
 
     def execute_file_on_host(self, host):
         logging.debug(f'Executing {self.exe_file} on {host}')
-        cmd = f'ssh -p {self.port} {self.user}@{host} "cd {self.script_directory}; python3 {self.exe_file} --date_stamp {self.date_stamp} -a {host} --gflop_threshold {self.gflop_threshold}"'
+        cmd = f'ssh -p {self.port} {self.user}@{host} "cd {self.script_directory}; python3 {self.exe_file} --date_stamp {self.date_stamp} --gflop_threshold {self.gflop_threshold}"'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
