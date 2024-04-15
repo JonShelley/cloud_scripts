@@ -186,8 +186,7 @@ if __name__ == '__main__':
     parser.add_argument('--date_stamp', default=None, type=str, help='the date stamp')
     parser.add_argument('--nfs', action='store_true', help='script directory is NFS mounted (default: %(default)s)')
     parser.add_argument('--venv', type=str, default='', help='specify the python virtual environment to use')
-    parser.add_argument('--ber_threshold', type=str, default='1e-7', help='specify the BER threshold')
-    parser.add_argument('--eff_threshold', type=str, default='0', help='specify the BER threshold')
+    parser.add_argument('--gflops_threshold', type=str, default='42000', help='specify the GFlops threshold')
     parser.add_argument('--max_workers', type=int, default=32, help='specify the maximum number of workers (default: %(default)s)')
     parser.add_argument('-p', '--port', type=int, default=22, help='specify the ssh port number (default: %(default)s)')
 
