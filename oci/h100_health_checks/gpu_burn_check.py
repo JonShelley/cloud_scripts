@@ -196,10 +196,10 @@ def main(args,gpu_burn_dir,host_info):
 
     if args.file_format == 'csv':
         # Write the dataframe to a CSV file
-        df.to_csv(f"{host_info['hostname']}_gpu_burn_results.csv", index=False)
+        df.to_csv(f"gpu_burn_{host_info['hostname']}_results.csv", index=False)
     elif args.file_format == 'json':
         # Write the dataframe to a JSON file
-        df.to_json(f"{host_info['hostname']}_gpu_burn_results.json", orient='records')
+        df.to_json(f"gpu_burn_{host_info['hostname']}_results.json", orient='records')
     else:
         logging.error(f"Invalid file format: {args.file_format}")
 
