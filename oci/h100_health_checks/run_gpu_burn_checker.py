@@ -116,7 +116,7 @@ class run_gpu_burn:
 
     def collect_results_from_host(self, host):
         logging.debug(f'Collecting results from {host}')
-        filename = f'gpu_burn_{host}_{self.date_stamp}.json'
+        filename = f'gpu_burn_*_{self.date_stamp}.json'
         cmd = f'scp -P {self.port} {self.user}@{host}:{self.script_directory}/{filename} .'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
