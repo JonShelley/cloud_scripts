@@ -24,7 +24,7 @@ class run_gpu_burn:
             self.date_stamp = args.date_stamp
         self.nfs = args.nfs
         self.venv = args.venv
-        self.gflop_threshold = args.gflops_threshold
+        self.gflops_threshold = args.gflops_threshold
         self.script_directory = args.script_directory
         self.hostfile = args.hostfile
         self.exe_file = args.exe_file
