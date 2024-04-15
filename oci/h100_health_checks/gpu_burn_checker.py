@@ -217,7 +217,7 @@ if __name__ == "__main__":
     parser.add_argument('--gpu_burn_dir', default='/opt/oci-hpc/gpu-burn', help='Set the GPU burn directory (default: %(default)s)')
     parser.add_argument('--file_format', default='json', help='Set the output file format: csv,json (default: %(default)s')
     parser.add_argument('--gflops_threshold', type=int, default=40000, help='Set the GFlops threshold (default: %(default)s)')
-    parser.add_argument('--date_stamp', type=str, help='The data file to use')
+    parser.add_argument('--date_stamp', type=str, help='The date stamp to use')
 
     # Execute the parse_args() method
     args = parser.parse_args()
