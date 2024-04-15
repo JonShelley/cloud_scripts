@@ -10,6 +10,15 @@ from rdma_link_flapping import LinkFlappingTest
 from xid_checker import XidChecker
 import platform
 import os
+import requests
+
+def get_metadata():
+    """ Make a request to metadata endpoint """
+    headers = { 'Authorization' : 'Bearer Oracle' }
+    metadata_url = "http://169.254.169.254/opc/"
+    metadata_ver = "2"
+    request_url = metadata_url + "v" + metadata_ver + "/instance/"
+    return requests.get(request_url, headers=headers).json()
 
 def is_user_root():
     # Check if the user is root
@@ -112,6 +121,8 @@ def check_ecc_errors():
 
     # Find the lines containing "SRAM Correctable" and "DRAM Correctable"
     sram_matches = re.findall(r'SRAM Uncorrectable\s+:\s+(\d+)', output)
+    if len(sram_matches)==0:
+        sram_matches = re.findall(r'SRAM Uncorrectable Parity\s+:\s+(\d+)', output)
     dram_matches = re.findall(r'DRAM Uncorrectable\s+:\s+(\d+)', output)
     gpu_matches = re.findall(r'\nGPU\s+(.*)\n', output)
     vol_sram_line = sram_matches[0::2]
@@ -186,8 +197,14 @@ def check_row_remap_errors():
 
 def check_rdma_link_status():
     status = True
-    devices = ["mlx5_0", "mlx5_1", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8", "mlx5_9", "mlx5_10", "mlx5_12", "mlx5_13", "mlx5_14", "mlx5_15", "mlx5_16", "mlx5_17"]
-    
+    metadata=get_metadata()
+    shape=metadata['shape']
+    if shape == "BM.GPU.H100.8":
+        devices = ["mlx5_0", "mlx5_1", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8", "mlx5_9", "mlx5_10", "mlx5_12", "mlx5_13", "mlx5_14", "mlx5_15", "mlx5_16", "mlx5_17"]
+    elif shape == "BM.GPU.B4.8" or shape == "BM.GPU.A100-v2.8":
+        devices = ["mlx5_1", "mlx5_2", "mlx5_3", "mlx5_4", "mlx5_5", "mlx5_6", "mlx5_7", "mlx5_8", "mlx5_9", "mlx5_10", "mlx5_11", "mlx5_12", "mlx5_14", "mlx5_15", "mlx5_16", "mlx5_17"]
+    elif shape == "BM.GPU4.8":
+        devices = ["mlx5_0", "mlx5_1", "mlx5_2", "mlx5_3", "mlx5_6", "mlx5_7", "mlx5_8", "mlx5_9", "mlx5_10", "mlx5_11", "mlx5_12", "mlx5_13", "mlx5_14", "mlx5_15", "mlx5_16", "mlx5_17"]
     link_issues = []
     for device in devices:
         # Run the mlxlink command
@@ -330,21 +347,26 @@ def check_gpu_count():
             logger.warning("Skipping GPU count test: nvidia-smi and lspci commands not found")
             return None
 
-
+def slurm_reason(message):
+    global slurm_drain_reason
+    global slurm_error_count
+    slurm_drain_reason+=(message+"\n")
+    slurm_error_count+=1
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Check H100 setup')
+    parser = argparse.ArgumentParser(description='Check Host setup')
     parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Set the logging level default: INFO")
     parser.add_argument('--bw-test', dest='bw_test', action='store_true', default=False, help='Run GPU bandwidth test (default: False)')
     parser.add_argument('--bw-test-exe', dest='bw_test_exe', help='Location to cuda-sampels bandwidthTest')
     parser.add_argument('--lf-interval', dest='lf_interval', default=6, type=int, help='Link flapping interval with no flapping or link down events (default: 6 (hours))')
     parser.add_argument('-a','--all', dest='run_all', action='store_true', default=False, help='Run all checks (default: False)')
+    parser.add_argument('-slurm','--slurm', dest='slurm', action='store_true', default=False, help='Add a Slurm message')
     args = parser.parse_args()
 
     logger.setLevel(args.log_level)
 
     datetime_str = datetime.now().strftime('%Y-%m-%d-%H%M%S')
-    logger.info(f"Started H100 setup check at: {datetime_str}")
+    logger.info(f"Started GPU host setup check at: {datetime_str}")
     try:
         oca_version = get_oca_version()
     except Exception as e:
@@ -429,12 +451,18 @@ if __name__ == '__main__':
         logger.warning(f"Failed to get host serial number with error: {e}")
         host_serial = "Unknown"
 
-    logger.info(f"--------- Summary of H100 setup check for {host_serial} ---------")
-    if oca_version < "1.38.0":
-        logger.error(f"Oracle Cloud Agent: {oca_version} needs to be updated to 1.38.0 or higher")
+    slurm_drain_reason = ""
+    slurm_error_count = 0
+
+    logger.info(f"--------- Summary of Host setup check for {host_serial} ---------")
+    if oca_version < "1.39.0":
+        logger.error(f"Oracle Cloud Agent: {oca_version} needs to be updated to 1.39.0 or higher")
+        slurm_reason("OCA version Error")
     if len(rttcc_issues) > 0:
         logger.error(f"RTTCC issues: {rttcc_issues}")
+        slurm_reason("RTTCC Error")
     if len(ecc_issues) > 0:
+        ecc_error=False
         for issue in ecc_issues:
             if "Skipped" in issue:
                 logger.warning(f"{host_serial} - {issue}")
@@ -443,35 +471,51 @@ if __name__ == '__main__':
                     logger.warning(f"{host_serial} - ECC issues: {issue}")
                 else:
                     logger.error(f"{host_serial} - ECC issues: {issue}")
+                    ecc_error=True
+        if ecc_error:
+            slurm_reason("ECC Error")
     if len(remap_results) > 0:
+        remap_error=False
         for issue in remap_results:
             if "<512" in issue:
                 logger.warning(f"{host_serial} - {issue}")
             else:
                 logger.error(f"{host_serial} - {issue}")
+                remap_error=True
+        if remap_error:
+            slurm_reason("Remap Error")
     if xid_results["status"] == "Failed":
         for xid in xid_results["results"]:
             for pci in xid_results["results"][xid]["results"]:
                 logger.error(f"{host_serial} - GPU Xid {xid} device: {pci}, {xid_results['results'][xid]['description']}")
+                slurm_reason("XID Error")
     if len(rdma_link_issues) > 0:
         for issue in rdma_link_issues:
             logger.error(f"{host_serial} - RDMA link issues: {issue}")
+            slurm_reason("RDMA Link Error")
     if len(lft_issues["failures"]) > 0 or len(lft_issues["link_down"]) > 0:
         if len(lft_issues["failures"]) > 0:
             for issue in lft_issues["failures"]:
                 logger.error(f"{host_serial} - RDMA link flapping issues: {issue}")
+                slurm_reason("RDMA Link Flapping Error")
         if len(lft_issues["link_down"]) > 0:
             for issue in lft_issues["link_down"]:
                 logger.error(f"{host_serial} - RDMA link down issues: {issue}")
+                slurm_reason("RDMA Link Down Error")
     if bwt_results != None:
         if bwt_results["status"] == "Failed":
             for issue in bwt_results["issues"]:
                 logger.error(f"{host_serial} - GPU bandwidth issues: {issue}")
+                slurm_reason("GPU Bwt Error")
     if bus_results:
         logger.error(f"{host_serial} - Bus issues: {bus_results}")
+        slurm_reason("GPU Bus Error")
     if gpu_results:
         logger.error(f"{host_serial} - Missing GPU(s): {gpu_results}")
+        slurm_reason("Missing GPU Error")
 
     datetime_str = datetime.now().strftime('%Y-%m-%d-%H%M%S')
-    logger.info(f"Finished H100 setup check at: {datetime_str}")
-    
+    logger.info(f"Finished GPU host setup check at: {datetime_str}")
+
+    if slurm_error_count > 0 and args.slurm:
+        print("Healthcheck:: "+slurm_drain_reason[:-1])
