@@ -176,7 +176,7 @@ if __name__ == '__main__':
 
     # Add the arguments
     parser.add_argument('--hostfile', type=str, default='hostfile.txt', help='the hostfile name')
-    parser.add_argument('-f', '--exe_file', type=str, default='gpu_burn_check.py', help='the executable file')
+    parser.add_argument('-f', '--exe_file', type=str, default='gpu_burn_checker.py', help='the executable file')
     parser.add_argument('--script_directory', type=str, default='cloud_scripts/oci/h100_health_checks', help='the script directory')
     parser.add_argument('-s', '--setup_host', action='store_true', help='setup the host to run gpu burn check')
     parser.add_argument('-d', '--distribute', action='store_true', help='distribute the executable file to the remote hosts')
