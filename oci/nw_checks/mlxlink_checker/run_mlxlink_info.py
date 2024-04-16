@@ -12,7 +12,7 @@ from  tabulate import tabulate
 import logging
 import subprocess
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 class run_mlxlink_info:
     def __init__(self, args):
@@ -163,8 +163,8 @@ class run_mlxlink_info:
             logging.info(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
         
         # Write out the results to a file
-        df.to_csv('run_mlxlink_info_{self.date_stamp}.csv', index=False)
-        df.to_json('run_mlxlink_info_{self.date_stamp}.json', orient='records')
+        df.to_csv(f'run_mlxlink_info_{self.date_stamp}.csv', index=False)
+        df.to_json(f'run_mlxlink_info_{self.date_stamp}.json', orient='records')
 
 
 if __name__ == '__main__':
