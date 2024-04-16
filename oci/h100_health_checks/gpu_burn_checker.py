@@ -33,12 +33,15 @@ def get_host_info():
             result = subprocess.run(['which', 'dmidecode'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
             if result.returncode != 0:
                 logging.error("dmidecode command not found")
-                result2 = subprocess.run(['chroot', '/host', 'dmidecode', '-s', 'system-serial-number'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+                cmd = "chroot /host dmidecode -s system-serial-number"
+                result2 = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
                 if result2.returncode != 0:
                     logging.error("Error getting host serial")
                     host_info['serial'] = 'Unknown'
+                    logging.error(f"stdout: {result2.stdout}")
+                    logging.error(f"stderr: {result2.stderr}")
                 else:
-                    output = result2.stdout.decode('utf-8')
+                    output = result2.stdout
                     host_info['serial'] = output.strip()
 
             result = subprocess.run(['dmidecode', '-s', 'system-serial-number'], shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
