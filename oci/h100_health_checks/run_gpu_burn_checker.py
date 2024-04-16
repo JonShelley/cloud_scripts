@@ -164,7 +164,7 @@ class run_gpu_burn:
             fail_df.to_json(f'failed_hosts_{self.date_stamp}.json', orient='records')
         else:
             logging.info('All tests passed')
-            logging.info(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
+            logging.debug(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
         
         # Write out the results to a file
         df.to_csv('run_gpu_burn_{self.date_stamp}.csv', index=False)
