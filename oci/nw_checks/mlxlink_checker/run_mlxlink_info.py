@@ -11,8 +11,12 @@ import pandas as pd
 from  tabulate import tabulate
 import logging
 import subprocess
+import logging.config
 
-logging.basicConfig(level=logging.INFO)
+logging.config.fileConfig('logging.conf')
+
+# create logger
+logger = logging.getLogger('simpleExample')
 
 class run_mlxlink_info:
     def __init__(self, args):
