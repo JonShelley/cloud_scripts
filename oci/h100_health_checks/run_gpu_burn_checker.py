@@ -153,7 +153,7 @@ class run_gpu_burn:
             df = pd.concat([df, new_df])
         
         # Print out results that failed
-        fail_df = df[df['Status'].str.contains('Failed')]
+        fail_df = df[df['status'].str.contains('Failed')]
 
         # Print out the results
         if not fail_df.empty:
