@@ -11,8 +11,12 @@ import pandas as pd
 from  tabulate import tabulate
 import logging
 import subprocess
+import logging.config
 
-logging.basicConfig(level=logging.DEBUG)
+logging.config.fileConfig('logging.conf')
+
+# create logger
+logger = logging.getLogger('simpleExample')
 
 class run_gpu_burn:
     def __init__(self, args):
