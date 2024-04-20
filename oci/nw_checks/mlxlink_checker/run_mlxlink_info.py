@@ -174,7 +174,7 @@ class run_mlxlink_info:
                 link_flap_df.to_csv(f'link_flap_hosts_{self.date_stamp}.csv', index=False)
                 link_flap_df.to_json(f'link_flap_hosts_{self.date_stamp}.json', orient='records')
             # Print out the hosts that failed with 'Failed - BER'
-            ber_df = fail_df[fail_df['Status'].str.contains('Failed - BER')]
+            ber_df = fail_df[fail_df['Status'].str.contains('Failed - RawPhyBER')]
             if not ber_df.empty:
                 logging.info('The following hosts have BER issues')
                 # Only print out the ip, cabel, and status columns
