@@ -162,9 +162,40 @@ class run_mlxlink_info:
             # Write out the failed hosts to a file
             fail_df.to_csv(f'failed_hosts_{self.date_stamp}.csv', index=False)
             fail_df.to_json(f'failed_hosts_{self.date_stamp}.json', orient='records')
+
+            # Print out the hosts that failed with 'Failed - Link Flap Detected'
+            link_flap_df = fail_df[fail_df['Status'].str.contains('Failed - Link Flap Detected')]
+            if not link_flap_df.empty:
+                logging.info('The following hosts have link flap issues')
+                # Only print out the ip, cabel, and status columns
+                link_flap_df = link_flap_df[['ip_addr', 'HostSerial','CableSerial', 'Status']]
+                logging.info(f"\n{tabulate(link_flap_df, headers='keys', tablefmt='simple_outline')}")
+                # Write out the link flap hosts to a file
+                link_flap_df.to_csv(f'link_flap_hosts_{self.date_stamp}.csv', index=False)
+                link_flap_df.to_json(f'link_flap_hosts_{self.date_stamp}.json', orient='records')
+            # Print out the hosts that failed with 'Failed - BER'
+            ber_df = fail_df[fail_df['Status'].str.contains('Failed - BER')]
+            if not ber_df.empty:
+                logging.info('The following hosts have BER issues')
+                # Only print out the ip, cabel, and status columns
+                ber_df = ber_df[['ip_addr', 'HostSerial','CableSerial', 'Status']]
+                logging.info(f"\n{tabulate(ber_df, headers='keys', tablefmt='simple_outline')}")
+                # Write out the BER hosts to a file
+                ber_df.to_csv(f'ber_hosts_{self.date_stamp}.csv', index=False)
+                ber_df.to_json(f'ber_hosts_{self.date_stamp}.json', orient='records')
+            # Print out the hosts that failed with 'Failed - EffPhyErrs >'
+            eff_df = fail_df[fail_df['Status'].str.contains('Failed - EffPhyErrs >')]
+            if not eff_df.empty:
+                logging.info('The following hosts have EffPhyErrs issues')
+                # Only print out the ip, cabel, and status columns
+                eff_df = eff_df[['ip_addr', 'HostSerial','CableSerial', 'Status']]
+                logging.info(f"\n{tabulate(eff_df, headers='keys', tablefmt='simple_outline')}")
+                # Write out the EffPhyErrs hosts to a file
+                eff_df.to_csv(f'eff_hosts_{self.date_stamp}.csv', index=False)
+                eff_df.to_json(f'eff_hosts_{self.date_stamp}.json', orient='records')
         else:
             logging.info('All tests passed')
-            logging.info(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
+            logging.debug(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
         
         # Write out the results to a file
         df.to_csv(f'run_mlxlink_info_{self.date_stamp}.csv', index=False)
@@ -235,4 +266,5 @@ if __name__ == '__main__':
 
             # Process the results
             print('Processing the results')
-            rmi.process_results()    
+            rmi.process_results()
+

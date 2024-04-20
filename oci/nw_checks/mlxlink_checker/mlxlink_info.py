@@ -214,7 +214,7 @@ class MlxlinkInfo:
     
     def check_mlxlink_info(self, df):
         # Check to see if the link state is up
-        df.loc[df['LinkState'] != 'Active', 'Status'] = 'Failed - LinkState = {}'.format(df['LinkState'])
+        df.loc[df['LinkState'] != 'Active', 'Status'] = 'Failed - LinkState != Active'
         
         # Check to see if the raw physical BER is lower than 1E-9
         df.loc[df['RawPhyBER'] > float(self.ber_threshold), 'Status'] = 'Failed - RawPhyBER > {}'.format(self.ber_threshold) 
