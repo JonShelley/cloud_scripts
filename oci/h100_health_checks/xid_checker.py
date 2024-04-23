@@ -13,7 +13,7 @@ class XidChecker:
         if not os.geteuid() == 0:
             logger.info("The XidChecker script did not run since it must be run as root")
             sys.exit(1)
-            self.dmesg_cmd = dmesg_cmd
+        self.dmesg_cmd = dmesg_cmd
        
         self.results = {}
 
