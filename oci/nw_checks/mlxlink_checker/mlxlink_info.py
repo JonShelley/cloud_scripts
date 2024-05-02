@@ -259,6 +259,7 @@ class MlxlinkInfo:
                         VendorName = data['result']['output']['Module Info']['Vendor Name']
                         VendorSerialNumber = data['result']['output']['Module Info']['Vendor Serial Number']
                         Recommended = data['result']['output']['Troubleshooting Info']['Recommendation']
+                        NicFWVersion = data['result']['output']['Tool Information']['Firmware Version']
                         LinkState = data['result']['output']['Operational Info']['State']
                         if 'result' in data and 'Histogram of FEC Errors' in data['result']['output']:
                             FecBin0 = data['result']['output']['Histogram of FEC Errors']['Bin 0']['values'][1]
@@ -300,6 +301,7 @@ class MlxlinkInfo:
                         LinkState = 'Unknown'
                         Recommended = 'Unknown'
                         VendorSerialNumber = 'Unknown'
+                        NicFWVersion = 'Unknown'
                         if 'result' in data:
                             RawPhysicalBER = data['result']['output']['Physical Counters and BER Info']['Raw Physical BER']
                             EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
@@ -379,6 +381,7 @@ class MlxlinkInfo:
                                             'HostSerial': host_serial,
                                             'CableSerial': VendorSerialNumber,
                                             'mlx5_': mlx5_interface,
+                                            'nic_fw_version': NicFWVersion,
                                             'EffPhyErrs': [int(EffectivePhysicalErrors)],
                                             'EffPhyBER': float(EffectivePhysicalBER),
                                             'RawPhyBER': float(RawPhysicalBER),
