@@ -213,6 +213,9 @@ class MlxlinkInfo:
         return self.date_stamp
     
     def check_mlxlink_info(self, df):
+        # Check to see if the FW is older than 28.39.2500
+        df.loc[df['nic_fw_version'] < '28.39.2500', 'Status'] = 'Warning - FW < 28.39.2500'
+        
         # Check to see if the link state is up
         df.loc[df['LinkState'] != 'Active', 'Status'] = 'Failed - LinkState != Active'
         
@@ -224,6 +227,8 @@ class MlxlinkInfo:
 
         # Check to see if the link has flapped
         df.loc[df['flap_count'] > 0, 'Status'] = 'Failed - Link Flap Detected'
+
+
 
         return df    
 
@@ -249,10 +254,6 @@ class MlxlinkInfo:
                     if CMD_Status == 0:
                         logging.info(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
                         RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
-                        RawPhysicalErrorsPerLane0 = RawPhysicalErrorsPerLane[0]
-                        RawPhysicalErrorsPerLane1 = RawPhysicalErrorsPerLane[1]
-                        RawPhysicalErrorsPerLane2 = RawPhysicalErrorsPerLane[2]
-                        RawPhysicalErrorsPerLane3 = RawPhysicalErrorsPerLane[3]
                         RawPhysicalBER = data['result']['output']['Physical Counters and BER Info']['Raw Physical BER']
                         EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
                         EffectivePhysicalBER = data['result']['output']['Physical Counters and BER Info']['Effective Physical BER']
@@ -291,10 +292,7 @@ class MlxlinkInfo:
                             FecBin14 = "-1"
                             FecBin15 = "-1"
                     else:
-                        RawPhysicalErrorsPerLane0 = '-1'
-                        RawPhysicalErrorsPerLane1 = '-1'
-                        RawPhysicalErrorsPerLane2 = '-1'
-                        RawPhysicalErrorsPerLane3 = '-1'
+                        RawPhysicalErrorsPerLane = [-1,-1,-1,-1]
                         EffectivePhysicalErrors = '-1'
                         EffectivePhysicalBER = '-1'
                         RawPhysicalBER = '1e-99'
@@ -304,6 +302,7 @@ class MlxlinkInfo:
                         NicFWVersion = 'Unknown'
                         if 'result' in data:
                             RawPhysicalBER = data['result']['output']['Physical Counters and BER Info']['Raw Physical BER']
+                            RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
                             EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
                             EffectivePhysicalBER = data['result']['output']['Physical Counters and BER Info']['Effective Physical BER']
                             VendorName = data['result']['output']['Module Info']['Vendor Name']
@@ -365,6 +364,16 @@ class MlxlinkInfo:
                     except:
                         RawPhysicalBER = -1.0
 
+                    try:
+                        # Convert the list of strings to a list of integers
+                        RawPhysicalErrorsPerLane = [int(i) for i in RawPhysicalErrorsPerLane]
+                        print(f"RawPhysicalErrorsPerLane: {RawPhysicalErrorsPerLane}")
+                        RawPhyErrPerLaneStdev = np.std(RawPhysicalErrorsPerLane)
+                        # Convert the standard deviation to a float
+                        RawPhyErrPerLaneStdev = float(RawPhyErrPerLaneStdev)
+                    except:
+                        RawPhyErrPerLaneStdev = 0.0
+
                     tmp_name = f"mlx5_{mlx5_interface}"
                     if tmp_name in link_flaps:
                         logging.debug(f"Link flap detected: {mlx5_interface}")
@@ -385,6 +394,7 @@ class MlxlinkInfo:
                                             'EffPhyErrs': [int(EffectivePhysicalErrors)],
                                             'EffPhyBER': float(EffectivePhysicalBER),
                                             'RawPhyBER': float(RawPhysicalBER),
+                                            'RawPhyErrStdev': RawPhyErrPerLaneStdev,
                                             'flap_count': flap_count,
                                             'last_flap_time': last_flap_time,
                                             'Recommended': Recommended,
@@ -417,6 +427,7 @@ if __name__ == "__main__":
     # Add the logging level argument
     parser.add_argument('-l', '--log', default='critical', help='Set the logging level (default: %(default)s)')
     parser.add_argument('-e', '--error', action='store_true', help='Set the error reporting')
+    parser.add_argument('-w', '--warning', action='store_true', help='Add warnings to the error reporting')
     parser.add_argument('--date_stamp', type=str, help='The data file to use')
     parser.add_argument('-q', '--quiet', action='store_true', help='Suppress output to the console (default: %(default)s)')
     parser.add_argument('-a', '--address', type=str, help='The ip address of the remote host')
