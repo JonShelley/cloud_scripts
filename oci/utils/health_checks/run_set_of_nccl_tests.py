@@ -460,8 +460,19 @@ def execute_command_in_sets_of_hosts_with_mpirun(args, dargs, date_stamp):
     if args.guidance:
         report_name = f'guidance_report_{run_type}_{date_stamp}.csv'
     
-    # Write the results to a CSV file
-    all_results_df.to_csv(report_name)
+    # If args.output_dir is set, write the results to that directory
+    if args.output_dir:
+        # Check if the directory exists
+        if not os.path.exists(args.output_dir):
+            os.makedirs(args.output_dir)
+        os.chdir(args.output_dir)
+        # Write the results to a json file
+        all_results_df.to_json(f'{report_name[:-4]}.json')
+    else:
+        # Write the results to a CSV file
+        all_results_df.to_csv(report_name)
+
+    
 
     # remove any columns that starts with 'time_'
     tmp_results_df = all_results_df.loc[:, ~all_results_df.columns.str.startswith('time_')]
@@ -525,7 +536,7 @@ if __name__ == "__main__":
     parser.add_argument('--no_ucx', action='store_true', help='Do not use UCX')
     parser.add_argument('--good_hosts', type=str, help='List of good hosts')
     parser.add_argument('--nccl_qps_per_connection', type=int, required=False, default=2, help='NCCL IB QPS per connection')
-
+    parser.add_argument('--output_dir', type=str, required=False, help='Output directory for the results')
 
     # Parse the arguments
     args = parser.parse_args()
