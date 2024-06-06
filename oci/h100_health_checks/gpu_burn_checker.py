@@ -199,6 +199,8 @@ def main(args,gpu_burn_dir,host_info):
 
     # if output_dir is provided, write the results to a file
     if args.output_dir:
+        if not os.path.exists(args.output_dir):
+            os.makedirs(args.output_dir)
         os.chdir(args.output_dir)
 
     if args.file_format == 'csv':
