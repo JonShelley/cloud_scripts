@@ -236,7 +236,7 @@ if __name__ == "__main__":
     if not args.date_stamp:
         import datetime
         now = datetime.datetime.now()
-        args.date_stamp = now.strftime("%Y-%m-%d_%H-%M-%S")
+        args.date_stamp = now.strftime("%Y%m%d%H%M%S")
 
 
     # Get the host info

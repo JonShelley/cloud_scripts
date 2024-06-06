@@ -432,7 +432,7 @@ if __name__ == "__main__":
     parser.add_argument('-q', '--quiet', action='store_true', help='Suppress output to the console (default: %(default)s)')
     parser.add_argument('-a', '--address', type=str, help='The ip address of the remote host')
     parser.add_argument('--ber_threshold', type=str, default='1e-7', help='specify the Raw Physical BER threshold')
-    parser.add_argument('--eff_threshold', type=str, default='0', help='specify the Effective Physical Error threshold')
+    parser.add_argument('--eff_threshold', type=str, default='100000', help='specify the Effective Physical Error threshold')
     parser.add_argument('--file_format', type=str, default='json', help='specify the output file format: csv,json (default: %(default)s')
     parser.add_argument('--output_dir', type=str, help='specify the output dir name')
 
