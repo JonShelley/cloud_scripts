@@ -87,7 +87,7 @@ def parse_nccl_output(output):
     logging.debug(f"Result: {tmp_data['results']}")
     logging.debug(f"Time: {tmp_data['time']}")
     message_columns = tmp_data['msg_size']
-    
+
     return tmp_data
 
 def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp, timeout=300):
@@ -155,16 +155,20 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp, timeout=300):
             mpirun_command += f" -x NCCL_IB_TC=41"
             mpirun_command += f" -x NCCL_IB_GID_INDEX=3"
             #mpirun_command += f" -x NCCL_BUFFSIZE=16777216"
-            #mpirun_command += f" -x NCCL_IB_QPS_PER_CONNECTION=16"
+            if args.nccl_qps_per_connection:
+                mpirun_command += f" -x NCCL_IB_QPS_PER_CONNECTION={args.nccl_qps_per_connection}"
+            mpirun_command += f" -x NCCL_IB_QPS_PER_CONNECTION=16"
             mpirun_command += f" -x NCCL_IB_SPLIT_DATA_ON_QPS=0"
-            #mpirun_command += f" -x NCCL_NCHANNEL={args.nccl_nchannels}"
+            if args.nccl_nchannels:
+                mpirun_command += f" -x NCCL_MIN_NCHANNELS={args.nccl_nchannels}"
+                mpirun_command += f" -x NCCL_MAX_NCHANNELS={args.nccl_nchannels}"
             if args.nccl_proto !=  "default":
                 mpirun_command += f" -x NCCL_PROTO={p}"
             if args.nccl_algo != "default":
                 mpirun_command += f" -x NCCL_ALGO={a}"
             #mpirun_command += f" -x NCCL_IB_HCA=mlx5"
             mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_1,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_7,mlx5_8,mlx5_9,mlx5_10,mlx5_12,mlx5_13,mlx5_14,mlx5_15,mlx5_16,mlx5_17'"
-            #mpirun_command += f" -x NCCL_NET_PLUGIN=none"
+            mpirun_command += f" -x NCCL_NET_PLUGIN=none"
             mpirun_command += f" -x LD_LIBRARY_PATH"
             mpirun_command += f" {nccl_test} -b {args.begin_size} -e {args.end_size} -f 2 -g 1 -n {nccl_iters}"
             logging.info(mpirun_command)
@@ -172,13 +176,6 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp, timeout=300):
             try:
                 # capture the time it takes to run the command
                 stime = datetime.now()
-                if args.noisy_neighbors and hostfile.find('noisy') != -1:
-                    proc1 = subprocess.Popen(mpirun_command, shell=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, universal_newlines=True)
-                    return proc1
-                else:
-                    output = subprocess.run(mpirun_command, shell=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, universal_newlines=True, timeout=timeout)
-                time_taken = datetime.now() - stime
-                time_taken = time_taken.total_seconds()
 
                 run_count = 0
                 outfile_name = f'output_{hostfile[:-4]}_{run_type}_{a}_{p}_{date_stamp}_run_{run_count}.log'
@@ -188,13 +185,23 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp, timeout=300):
                     run_count += 1
                     outfile_name = f'output_{hostfile[:-4]}_{run_type}_{a}_{p}_{date_stamp}_run_{run_count}.log'
 
-                # Write output to a file
-                with open(outfile_name, 'w') as f:
-                    f.write(f"{mpirun_command}\n\n")
-                    f.write(output.stdout)
+                if args.noisy_neighbors and hostfile.find('noisy') != -1:
+                    # Write output to a file
+                    with open("noisy_" + outfile_name, 'w') as f:
+                        proc1 = subprocess.Popen(mpirun_command, shell=True, stderr=f, stdout=f, universal_newlines=True)
+                    return proc1
+                else:
+                    with open(outfile_name, 'w') as f:
+                        output = subprocess.run(mpirun_command, shell=True, stderr=f, stdout=f, universal_newlines=True, timeout=timeout)
+                    
+                time_taken = datetime.now() - stime
+                time_taken = time_taken.total_seconds()
+                # Read the output file
+                with open(outfile_name, 'r') as f:
+                    output = f.read()
 
                 # Parse the output
-                tmp_data = parse_nccl_output(output.stdout)
+                tmp_data = parse_nccl_output(output)
                 
                 row_data = {'HostSet': [hostfile], "Nodes": [HPJ], "GPUs": [NP], 'algo': [a], 'proto': [p]}
                 for msg_size, result in zip(tmp_data['msg_size'], tmp_data['results']):
@@ -471,7 +478,7 @@ def execute_command_in_sets_of_hosts_with_mpirun(args, dargs, date_stamp):
 def identify_suspect_hosts(df):
     # Identify the suspect hosts by looking at average value of each message size
     # and identifying the hosts that are significantly different from the average
-
+    pass
 
 def create_circular_pairs(lst):
     return [[lst[i], lst[(i+1)%len(lst)]] for i in range(len(lst))]
@@ -488,8 +495,6 @@ def check_mpirun_exists():
         return False
     return True
 
-def bisect
-
  
 if __name__ == "__main__":
     # Create the parser
@@ -498,8 +503,8 @@ if __name__ == "__main__":
     # Add the arguments
     parser.add_argument('--hostfile', type=str, help='The hostfile to use')
     parser.add_argument('--hosts_per_job', nargs='+', required=False, default=[16], help='Number of hosts per job. Can specify 1 or more values separated by spaces')
-    parser.add_argument('--begin_size', type=str, required=False, default='1G', help='Beginning size for the NCCL test')
-    parser.add_argument('--end_size', type=str, required=False, default='2G', help='End size for the NCCL test')
+    parser.add_argument('--begin_size', type=str, required=False, default='512KB', help='Beginning size for the NCCL test')
+    parser.add_argument('--end_size', type=str, required=False, default='8G', help='End size for the NCCL test')
     parser.add_argument('--nccl_test', type=str, required=False, default="/data/launches/xsun/nccl-tests/build/alltoall_perf", help='NCCL test to run')
     parser.add_argument('--nccl_topo_file', type=str, required=False, default="/data/nccl-topology.xml", help='NCCL topology file to use')
     parser.add_argument('--nccl_algo', type=str, required=False, default="default", help='NCCL algorithm to use')
@@ -513,12 +518,13 @@ if __name__ == "__main__":
     parser.add_argument('--nccl_iters', type=int, required=False, default=50, help='Number of nccl iterations to run')
     parser.add_argument('--iterations', type=int, required=False, default=1, help='Number of iterations to run per HPJ')
     parser.add_argument('--runs_per_node_count', type=int, required=False, default=1, help='Number of runs per node count')
-    parser.add_argument('--nccl_nchannels', type=str, required=False, default='16', help='NCCL nchannels to run')
+    parser.add_argument('--nccl_nchannels', type=str, required=False, help='NCCL nchannels to run')
     parser.add_argument('--noisy_neighbors', action='store_true', help='Run noisy neighbors test')
     parser.add_argument('--find_waldo', action='store_true', help='Find Waldo takes the hosts list and runs set of tests for all but one host')
     parser.add_argument('--ssh_port', type=int, default=22, help="port for ssh to use")
     parser.add_argument('--no_ucx', action='store_true', help='Do not use UCX')
     parser.add_argument('--good_hosts', type=str, help='List of good hosts')
+    parser.add_argument('--nccl_qps_per_connection', type=int, required=False, default=2, help='NCCL IB QPS per connection')
 
 
     # Parse the arguments
