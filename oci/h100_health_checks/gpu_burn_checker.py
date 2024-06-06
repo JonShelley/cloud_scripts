@@ -197,6 +197,10 @@ def main(args,gpu_burn_dir,host_info):
     else:
         logging.info(f"GPU BURN Test: Passed")
 
+    # if output_dir is provided, write the results to a file
+    if args.output_dir:
+        os.chdir(args.output_dir)
+
     if args.file_format == 'csv':
         # Write the dataframe to a CSV file
         df.to_csv(f"gpu_burn_{host_info['serial']}_results_{args.date_stamp}.csv", index=False)
@@ -221,9 +225,17 @@ if __name__ == "__main__":
     parser.add_argument('--file_format', default='json', help='Set the output file format: csv,json (default: %(default)s')
     parser.add_argument('--gflops_threshold', type=int, default=40000, help='Set the GFlops threshold (default: %(default)s)')
     parser.add_argument('--date_stamp', type=str, help='The date stamp to use')
+    parser.add_argument('--output_dir', type=str, help='The output directory to use')
 
     # Execute the parse_args() method
     args = parser.parse_args()
+
+    # if date_stamp is not provided, set it to the current date
+    if not args.date_stamp:
+        import datetime
+        now = datetime.datetime.now()
+        args.date_stamp = now.strftime("%Y-%m-%d_%H-%M-%S")
+
 
     # Get the host info
     host_info = get_host_info()
