@@ -434,6 +434,7 @@ if __name__ == "__main__":
     parser.add_argument('--ber_threshold', type=str, default='1e-7', help='specify the Raw Physical BER threshold')
     parser.add_argument('--eff_threshold', type=str, default='0', help='specify the Effective Physical Error threshold')
     parser.add_argument('--file_format', type=str, default='json', help='specify the output file format: csv,json (default: %(default)s')
+    parser.add_argument('--output_dir', type=str, help='specify the output dir name')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -471,6 +472,12 @@ if __name__ == "__main__":
             logging.info(f"No errors found in the dataframe")
     else:
         logging.info(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
+
+    # Save the dataframe to a file
+    if args.output_dir:
+        if not os.path.exists(args.output_dir):
+            os.makedirs(args.output_dir)
+        os.chdir(args.output_dir)
 
     if args.file_format == 'json':
         # Write the dataframe to a JSON file
