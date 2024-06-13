@@ -156,7 +156,7 @@ class XidChecker:
                 "134": {"description": "Reserved", "severity": "Warn"},
                 "135": {"description": "Reserved", "severity": "Warn"},
                 "136": {"description": "Reserved", "severity": "Warn"},
-                "137": {"description": "Reserved", "severity": "Warn"},
+                "137": {"description": "NVLINK_FLA_PRIV_ERR", "severity": "Warn"},
                 "138": {"description": "Reserved", "severity": "Warn"},
                 "139": {"description": "Reserved", "severity": "Warn"},
                 "140": {"description": "Unrecovered ECC Error", "severity": "Warn"},
