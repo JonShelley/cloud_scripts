@@ -8,7 +8,6 @@ import time
 import json
 from shared_logging import logger
 
-
 class BandwidthTest:
     def __init__(self, iteration=1, size=32000000, bw_test_exe="/opt/oci-hpc/cuda-samples/bin/x86_64/linux/release/bandwidthTest"):
         self.iteration = iteration
@@ -77,7 +76,7 @@ class BandwidthTest:
                     results["gpus"][device]["dtoh"].append(dtoh)
                     results["gpus"][device]["htod"].append(htod)
 
-            logger.debug(str(i) + " : " +str(device) + " : " + str(dtoh) + " : " + str(htod))
+            logger.debug(str(i) + " : " + str(device) + " : " + str(dtoh) + " : " + str(htod))
         
             if i > 1 and i != iterations - 1:
                  # Sleep for 5 seconds and rerun
