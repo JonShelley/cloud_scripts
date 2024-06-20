@@ -171,8 +171,8 @@ class run_gpu_burn:
             logging.debug(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
         
         # Write out the results to a file
-        df.to_csv('run_gpu_burn_{self.date_stamp}.csv', index=False)
-        df.to_json('run_gpu_burn_{self.date_stamp}.json', orient='records')
+        df.to_csv(f'run_gpu_burn_{self.date_stamp}.csv', index=False)
+        df.to_json(f'run_gpu_burn_{self.date_stamp}.json', orient='records')
 
 
 if __name__ == '__main__':
