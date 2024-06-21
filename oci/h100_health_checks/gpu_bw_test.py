@@ -6,12 +6,15 @@ import os
 import socket
 import time
 import json
-from shared_logging import logger
+from common_logger import CommonLogger
+from common_logger import runWithDummyValues
 import re
 
 
 class BandwidthTest:
     def __init__(self, iteration=1, size=32000000, bw_test_exe="/opt/oci-hpc/cuda-samples/bin/x86_64/linux/release/bandwidthTest"):
+        self.testname = "GPU BW"
+        self.logger = CommonLogger.getLogger(self.testname, None, None)
         self.iteration = iteration
         self.size = size
         self.bw_test_exe = bw_test_exe
@@ -32,6 +35,10 @@ class BandwidthTest:
         return len(filtered_output)
 
     def measure_gpu_bw(self):
+        self.logger.set(self.testname, None, None)
+        if bool(runWithDummyValues):
+            self.results = BandwidthTest.getDummyResults();
+            return
         numas = 2
         gpus = 8
         iterations = 1
@@ -41,11 +48,11 @@ class BandwidthTest:
         numas = self.get_numa_nodes()
         gpus_per_numa = gpus // numas
 
-        logger.debug("GPUs: {}".format(gpus))
-        logger.debug("NUMAs: {}".format(numas))
-        logger.debug("GPUs per NUMA: {}".format(gpus_per_numa))
+        self.logger.debug("GPUs: {}".format(gpus))
+        self.logger.debug("NUMAs: {}".format(numas))
+        self.logger.debug("GPUs per NUMA: {}".format(gpus_per_numa))
 
-        logger.debug("Iteration: Device: DtoH : HtoD")
+        self.logger.debug("Iteration: Device: DtoH : HtoD")
         hostname = socket.gethostname()
         results = {"gpus": {}, "host": hostname}
 
@@ -77,12 +84,12 @@ class BandwidthTest:
         for i in range(iterations):
             for device in range(gpus):
                 os.environ["CUDA_VISIBLE_DEVICES"] = str(device)
-                logger.debug("ENV: {}".format(os.environ["CUDA_VISIBLE_DEVICES"]))
-                logger.debug("Iteration: {} Device: {} gpus_per_numa: {}".format(i, device, gpus_per_numa))
-                logger.debug("CMD: {}".format(["numactl", "-N" + str(device // gpus_per_numa), "-m" + str(device // gpus_per_numa), self.bw_test_exe, "-dtoh"]))
+                self.logger.debug("ENV: {}".format(os.environ["CUDA_VISIBLE_DEVICES"]))
+                self.logger.debug("Iteration: {} Device: {} gpus_per_numa: {}".format(i, device, gpus_per_numa))
+                self.logger.debug("CMD: {}".format(["numactl", "-N" + str(device // gpus_per_numa), "-m" + str(device // gpus_per_numa), self.bw_test_exe, "-dtoh"]))
                 result = subprocess.run(["numactl", "-N" + str(device // gpus_per_numa), "-m" + str(device // gpus_per_numa), self.bw_test_exe, "-dtoh"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-                logger.debug("Output: {}".format(result.stdout))
-                logger.debug("Error: {}".format(result.stderr))
+                self.logger.debug("Output: {}".format(result.stdout))
+                self.logger.debug("Error: {}".format(result.stderr))
                 if result.stdout.find(size) != -1:
                     result = result.stdout.split("\n")
                     tmp = [x for x in result if size in x]
@@ -104,40 +111,60 @@ class BandwidthTest:
                     results["gpus"][device]["dtoh"].append(dtoh)
                     results["gpus"][device]["htod"].append(htod)
 
-            logger.debug(str(i) + " : " +str(device) + " : " + str(dtoh) + " : " + str(htod))
+            self.logger.debug(str(i) + " : " +str(device) + " : " + str(dtoh) + " : " + str(htod))
         
             if i > 1 and i != iterations - 1:
                  # Sleep for 5 seconds and rerun
                  time.sleep(5)
         
-        logger.debug(json.dumps(results))
+        self.logger.debug(json.dumps(results))
         self.results = results
 
     def validate_results(self):
-        gpu_issues = {"status": "Passed", "issues": []}
+        gpu_issues = {"status": "Passed", "devices": {}}
         if self.results == None:
             gpu_issues["issues"].append("GPU bandwidth test did not run since processes are running on the GPU")
             gpu_issues["status"] = "Failed"
             return gpu_issues
         status = True
         for device in self.results["gpus"]:
+            gpu_issues["devices"][device] = [];
             dtoh = self.results["gpus"][device]["dtoh"]
             htod = self.results["gpus"][device]["htod"]
             dtoh_avg = sum(dtoh) / len(dtoh)
             htod_avg = sum(htod) / len(htod)
-            logger.debug("Device: {} DtoH: {} HtoD: {}".format(device, dtoh_avg, htod_avg))
+            self.logger.debug("Device: {} DtoH: {} HtoD: {}".format(device, dtoh_avg, htod_avg))
             if dtoh_avg < self.dtoh_threshold:
-                logger.debug("Device: {} DtoH: {} is below threshold: {}".format(device, dtoh_avg, self.dtoh_threshold))
-                gpu_issues["issues"].append("Device: {} DtoH: {} is below threshold: {}".format(device, dtoh_avg, self.dtoh_threshold))
+                self.logger.debug("Device: {} DtoH: {} is below threshold: {}".format(device, dtoh_avg, self.dtoh_threshold))
+                gpu_issues["devices"][device].append("DtoH: {} is below threshold: {}".format(dtoh_avg, self.dtoh_threshold))
                 gpu_issues["status"] = "Failed"
             if htod_avg < self.htod_threshold:
-                logger.debug("Device: {} HtoD: {} is below threshold: {}".format(device, htod_avg, self.htod_threshold))
-                gpu_issues["issues"].append("Device: {} HtoD: {} is below threshold: {}".format(device, htod_avg, self.htod_threshold))
+                self.logger.debug("Device: {} HtoD: {} is below threshold: {}".format(device, htod_avg, self.htod_threshold))
+                gpu_issues["devices"][device].append("HtoD: {} is below threshold: {}".format(htod_avg, self.htod_threshold))
                 gpu_issues["status"] = "Failed"
         if gpu_issues["status"] == "Passed":
-            logger.info("GPU bandwidth test passed")
+            self.logger.info("GPU bandwidth test passed")
         return gpu_issues
-            
+
+    def getTestName(self):
+        return self.testname
+
+    def logResults(self, hostSerial, gpu_issues):
+        self.logger.setTestName(self.testname);
+        self.logger.setHostSerial(hostSerial)
+        if gpu_issues["status"] == "Failed":
+            for device in gpu_issues["devices"]:
+                for issue in gpu_issues["devices"][device]:
+                    self.logger.setDevice(device)
+                    self.logger.error2("GPU BW", f"{issue}")
+
+    @staticmethod
+    def getDummyResults():
+        dummyResults = {"gpus": {}, "host": "hostname"}
+        dummyResults["gpus"]["dev1"] = {"dtoh": [50], "htod": [44]}
+        dummyResults["gpus"]["dev2"] = {"dtoh": [52], "htod": [54]}
+        dummyResults["gpus"]["dev3"] = {"dtoh": [41], "htod": [40]}
+        return dummyResults
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run GPU bandwidth test')
@@ -147,7 +174,9 @@ if __name__ == '__main__':
     parser.add_argument('--bw-test-exe', dest='bw_test_exe', default='/opt/oci-hpc/cuda-samples/bin/x86_64/linux/release/bandwidthTest', help='Path to the bw_test executable')
     args = parser.parse_args()
 
+    logger = CommonLogger.getLogger("GPU BW Test", "serial1", None);
     logger.setLevel(args.log_level)
+    logger.info("Test Started")
     if args.iterations != 'NONE':
         iterations = int(args.iterations)
     if args.size != 'NONE':
@@ -157,11 +186,10 @@ if __name__ == '__main__':
 
     bwt = BandwidthTest(iteration=iterations, size=size, bw_test_exe=bw_test_exe)
     bwt.measure_gpu_bw()
+
     bwt_results = bwt.validate_results()
-    if bwt_results["status"] == "Passed":
-        logger.info("GPU bandwidth test passed")
-    else:
-        logger.error("GPU bandwidth test failed")
-        for issue in bwt_results["issues"]:
-            logger.error(issue)    
+    bwt.logResults(None, bwt_results)
+
+    logger.info("Test Ended")
+
 

@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 
 import argparse
-from shared_logging import logger
+from common_logger import CommonLogger
+from common_logger import runWithDummyValues
 import subprocess
-import sys
 import re
-import os
+
 
 class XidChecker:
     def __init__(self, dmesg_cmd="dmesg", time_interval=60):
+        self.testname = "GPU Xid"
+        self.logger = CommonLogger.getLogger(self.testname, None, None)
         # if user is root
-        if not os.geteuid() == 0:
-            logger.info("The XidChecker script did not run since it must be run as root")
-            sys.exit(1)
+        # if not os.geteuid() == 0:
+        #     logger.info("The XidChecker script did not run since it must be run as root")
+        #     sys.exit(1)
         self.dmesg_cmd = dmesg_cmd
-       
-        self.results = {}
 
+        self.results = {}
 
         # Check for the following GPU Xid errors in dmesg
         self.XID_EC = {
@@ -50,7 +51,7 @@ class XidChecker:
                 "28": {"description": "Video processor exception", "severity": "Warn"},
                 "29": {"description": "Video processor exception", "severity": "Warn"},
                 "30": {"description": "GPU semaphore access error", "severity": "Warn"},
-                "31": {"description": "GPU memory page fault", "severity": "Critical"},    
+                "31": {"description": "GPU memory page fault", "severity": "Critical"},
                 "32": {"description": "Invalid or corrupted push buffer stream", "severity": "Warn"},
                 "33": {"description": "Internal micro-controller error", "severity": "Warn"},
                 "34": {"description": "Video processor exception", "severity": "Warn"},
@@ -67,7 +68,7 @@ class XidChecker:
                 "45": {"description": "Preemptive cleanup, due to previous errors -- Most likely to see when running multiple cuda applications and hitting a DBE", "severity": "Warn"},
                 "46": {"description": "GPU stopped processing", "severity": "Warn"},
                 "47": {"description": "Video processor exception", "severity": "Warn"},
-                "48": {"description": "Double Bit ECC Error", "severity": "Critical"}, 
+                "48": {"description": "Double Bit ECC Error", "severity": "Critical"},
                 "49": {"description": "Unused", "severity": "Warn"},
                 "50": {"description": "Unused", "severity": "Warn"},
                 "51": {"description": "Unused", "severity": "Warn"},
@@ -166,13 +167,17 @@ class XidChecker:
                 }
 
     def check_gpu_xid(self):
+        self.logger.set(self.testname, None, None)
+        if bool(runWithDummyValues):
+            return XidChecker.getDummyResults()
         status = "Pass"
         dmesg_output = subprocess.check_output([self.dmesg_cmd]).decode("utf-8")
         if "NVRM: Xid" in dmesg_output:
             for XID in self.XID_EC.keys():
-                logger.debug(f"Checking for GPU Xid {XID} error in dmesg")
-                
-                matches = re.findall(f"NVRM: Xid \(PCI:(.*?): {XID},", dmesg_output)
+                self.logger.debug(f"Checking for GPU Xid {XID} error in dmesg")
+
+                matches = re.findall(f"NVRM: Xid \(PCI:(.*?): {XID},",
+                                     dmesg_output)
                 tmp_dict = {}
                 for match in matches:
                     if match not in tmp_dict:
@@ -180,27 +185,58 @@ class XidChecker:
                     else:
                         tmp_dict[match] = tmp_dict[match] + 1
                 for x in tmp_dict.keys():
-                    logger.info(f"{XID} : count: {tmp_dict[x]}, {self.XID_EC[XID]['description']} - PCI: {x}")
+                    self.logger.info(
+                        f"{XID} : count: {tmp_dict[x]}, {self.XID_EC[XID]['description']} - PCI: {x}")
                 if not matches:
-                    logger.debug(f"No GPU Xid {XID} error found in dmesg")
+                    self.logger.debug(f"No GPU Xid {XID} error found in dmesg")
                 if tmp_dict != {}:
                     if self.XID_EC[XID]['severity'] == "Critical":
                         status = "Failed"
-                    self.results[XID] = {"results": tmp_dict, "description": self.XID_EC[XID]['description']}
+                    self.results[XID] = {"results": tmp_dict,
+                                         "description": self.XID_EC[XID][
+                                             'description']}
         else:
-            logger.info("Xid Check: Passed")
+            self.logger.info("Xid Check: Passed")
         return {"status": status, "results": self.results}
+
+    def getTestName(self):
+        return self.testname
+
+    def logResults(self, hostSerial, xid_results):
+        self.logger.set(self.testname, hostSerial, None)
+        if xid_results["status"] == "Failed":
+            self.logger.setTestName("GPU Xid")
+            for xid in xid_results["results"]:
+                for pci in xid_results["results"][xid]["results"]:
+                    self.logger.setDevice(pci)
+                    self.logger.error(
+                        f"GPU Xid {xid}, {xid_results['results'][xid]['description']}")
+    @staticmethod
+    def getDummyResults():
+        dummyResults = {"status": "Failed", "results": {}}
+        dummyResults["results"]["74"] = {}
+        dummyResults["results"]["74"]["results"] = {}
+        dummyResults["results"]["74"]["results"] = {"0000:89:00": 1}
+        dummyResults["results"]["74"][
+            "description"] = "ECC page retirement or row remapping recording event"
+        return dummyResults
 
 
 if __name__ == '__main__':
     # Argument parsing
     parser = argparse.ArgumentParser(description='Check for GPU Xid errors.')
-    parser.add_argument('--dmesg_cmd', default='dmesg', help='Dmesg file to check. Default is dmesg.')
+    parser.add_argument('--dmesg_cmd', default='dmesg',
+                        help='Dmesg file to check. Default is dmesg.')
     args = parser.parse_args()
 
-
+    logger = CommonLogger.getLogger(None, None, None)
+    logger.setTestName("GPU Xid")
     logger.debug(f"Using dmesg command: {args.dmesg_cmd}")
-    
+
     xc = XidChecker(dmesg_cmd=args.dmesg_cmd)
     results = xc.check_gpu_xid()
-    logger.debug("Status: {}, Results: {}".format(results["status"], results["results"]))
+
+    xc.logResults("X001", results)
+    # logger.error(f"GPU Xid {xid} device: {pci}, {xid_results['results'][xid]['description']}")
+
+    # logger.debug("Status: {}, Results: {}".format(results["status"], results["results"]))

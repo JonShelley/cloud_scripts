@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 
 import os
-import sys
 import time
 import datetime
 import re
 import argparse
-import socket
 import subprocess
-from shared_logging import logger
+
+from common_logger import CommonLogger,runWithDummyValues
 
 
 class LinkFlappingTest:
@@ -16,8 +15,9 @@ class LinkFlappingTest:
         self.results = None
         self.time_interval = int(time_interval)
         self.link_data = None
+        self.testname = "LINK FLAP"
+        self.logger = CommonLogger.getLogger(self.testname, None, None)
 
-            
         # Check if the log file exists
         msg_file = "/var/log/messages"
         if not os.path.exists(msg_file):
@@ -25,6 +25,8 @@ class LinkFlappingTest:
         self.log_file = msg_file
 
     def get_rdma_link_failures(self):
+        if bool(runWithDummyValues):
+            return []
 
         pattern  = r"(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+\S+\s+wpa_supplicant(?:\[\d+\])?: (\w+): CTRL-EVENT-EAP-FAILURE EAP authentication failed"
         pattern2 = r"(\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2})\s+\S+\s+kernel: (?:\[\d+\.\d+\]\s)?mlx5_core \S+ (\w+): Link down"
@@ -36,29 +38,31 @@ class LinkFlappingTest:
                 if match:
                     time_str = match.group(1)
                     interface = match.group(2)
-                    logger.debug(f"time: {time_str}, interface: {interface}")
+                    self.logger.debug(f"time: {time_str}, interface: {interface}")
                     if interface not in self.link_data:
                         self.link_data[interface] = {"failures": [time_str], "link_down": []}
                     else:
                         self.link_data[interface]["failures"].append(time_str)
-
                 
                 match = re.search(pattern2, line)
                 if match:
                     time_str = match.group(1)
                     interface = match.group(2)
-                    logger.debug(f"time: {time_str}, interface: {interface}")
+                    self.logger.debug(f"time: {time_str}, interface: {interface}")
                     if interface not in self.link_data:
                         self.link_data[interface] = {"failures": [], "link_down": [time_str]}
                     else:
                         self.link_data[interface]["link_down"].append(time_str)
                         
-        logger.debug("Link Data: {}".format(self.link_data))
+        self.logger.debug("Link Data: {}".format(self.link_data))
         return self.link_data
 
     def process_rdma_link_flapping(self):
 
         link_issues = {"failures": [], "link_down": []}
+
+        if bool(runWithDummyValues):
+            return self.getDummyResults()
 
         # Get the time stamp when the host came up
         bootup_time = subprocess.run(['uptime', '-s'], stdout=subprocess.PIPE)
@@ -77,8 +81,8 @@ class LinkFlappingTest:
             for interface in self.link_data:
                 if len(self.link_data[interface]["failures"]) > 0:
                     link_failures = True
-                    logger.debug(f"{interface}: {len(self.link_data[interface]['failures'])} RDMA link failure entries in {self.log_file}")
-                    logger.debug(f"{interface}: {self.link_data[interface]['failures']}")        
+                    self.logger.debug(f"{interface}: {len(self.link_data[interface]['failures'])} RDMA link failure entries in {self.log_file}")
+                    self.logger.debug(f"{interface}: {self.link_data[interface]['failures']}")
                 last_date_failure_str = None
 
                 if len(self.link_data[interface]["failures"]) > 0:
@@ -99,18 +103,18 @@ class LinkFlappingTest:
                 if last_date_failure_str != None and last_date_failure_str != current_date_str:
                     diff_secs = current_date_sec - last_date_failure_sec
                     diff_hours = diff_secs // (60 * 60)
-                    logger.debug(f"RDMA link ({interface}) failed  {diff_hours} hours ago")
+                    self.logger.debug(f"RDMA link ({interface}) failed  {diff_hours} hours ago")
 
-                    logger.debug(f"bootup_time_sec: {bootup_time_sec}, boot_time_grace_period: {bootup_time_grace_period}, current_date_sec: {current_date_sec}, diff_secs: {diff_secs}, diff_hours: {diff_hours}")
+                    self.logger.debug(f"bootup_time_sec: {bootup_time_sec}, boot_time_grace_period: {bootup_time_grace_period}, current_date_sec: {current_date_sec}, diff_secs: {diff_secs}, diff_hours: {diff_hours}")
                     if diff_hours < self.time_interval and last_date_failure_sec > bootup_time_grace_period:
-                        logger.debug(f"{interface}: one or more RDMA link flapping events within {self.time_interval} hours. Last flapping event: {last_date_failure_str})")
+                        self.logger.debug(f"{interface}: one or more RDMA link flapping events within {self.time_interval} hours. Last flapping event: {last_date_failure_str})")
                         link_issues["failures"].append(f"{interface}: {len(self.link_data[interface]['failures'])}")
                         status = -1
 
             for interface in self.link_data:
                 if len(self.link_data[interface]["link_down"]) > 0:
-                    logger.debug(f"{interface}: {len(self.link_data[interface]['link_down'])} RDMA link down entries in {self.log_file}")
-                    logger.debug(f"{interface}: {self.link_data[interface]['link_down']}")
+                    self.logger.debug(f"{interface}: {len(self.link_data[interface]['link_down'])} RDMA link down entries in {self.log_file}")
+                    self.logger.debug(f"{interface}: {self.link_data[interface]['link_down']}")
                 last_date_down_str = None
 
                 if len(self.link_data[interface]["link_down"]) > 0:
@@ -132,24 +136,40 @@ class LinkFlappingTest:
                 if last_date_down_str != None and last_date_down_str != current_date_str:
                     diff_secs = current_date_sec - last_date_down_sec
                     diff_hours = diff_secs // (60 * 60)
-                    logger.debug(f"RDMA link ({interface}) down  {diff_hours} hours ago")
+                    self.logger.debug(f"RDMA link ({interface}) down  {diff_hours} hours ago")
                     
-                    logger.debug(f"bootup_time_sec: {bootup_time_sec}, boot_time_grace_period: {bootup_time_grace_period}, current_date_sec: {current_date_sec}, diff_secs: {diff_secs}, diff_hours: {diff_hours}")
+                    self.logger.debug(f"bootup_time_sec: {bootup_time_sec}, boot_time_grace_period: {bootup_time_grace_period}, current_date_sec: {current_date_sec}, diff_secs: {diff_secs}, diff_hours: {diff_hours}")
                     if diff_hours < self.time_interval and last_date_down_sec > bootup_time_grace_period:
-                        logger.debug(f"{interface}, one or more RDMA link down events within {self.time_interval} hours. Last link down event: {last_date_down_str}")
+                        self.logger.debug(f"{interface}, one or more RDMA link down events within {self.time_interval} hours. Last link down event: {last_date_down_str}")
                         link_issues["link_down"].append(f"{interface}: {len(self.link_data[interface]['link_down'])}")
                         status = -2
             if status == -1:
-                logger.debug(f"One or more RDMA link flapping events within the past {self.time_interval} hours")
+                self.logger.debug(f"One or more RDMA link flapping events within the past {self.time_interval} hours")
             if status == -2:
-                logger.debug(f"One or more RDMA link down events within the past {self.time_interval} hours")
+                self.logger.debug(f"One or more RDMA link down events within the past {self.time_interval} hours")
 
         else:
-            logger.info("No RDMA link failures entry in /var/log/messages")
+            self.logger.info("No RDMA link failures entry in /var/log/messages")
         if status == 0:    
-            logger.info("RDMA link flapping/down test: Passed")
+            self.logger.info("RDMA link flapping/down test: Passed")
         else:
-            logger.warning("RDMA link flapping/down test: Failed")
+            self.logger.warning("RDMA link flapping/down test: Failed")
+        return link_issues
+
+    def logResults(self, lft_issues, host_serial):
+        self.logger.setHostSerial(host_serial)
+        if len(lft_issues["failures"]) > 0 or len(lft_issues["link_down"]) > 0:
+            if len(lft_issues["failures"]) > 0:
+                for issue in lft_issues["failures"]:
+                    self.logger.error(f"{issue}")
+            if len(lft_issues["link_down"]) > 0:
+                for issue in lft_issues["link_down"]:
+                    self.logger.error(f"RDMA link down issues: {issue}")
+
+    def getDummyResults(self):
+        link_issues = {"failures": [], "link_down": []}
+        link_issues["failures"].append(f"eth1: failures reason 1")
+        link_issues["link_down"].append(f"eth1: link_down reason 1")
         return link_issues
 
 
@@ -159,6 +179,7 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"], default="INFO", help="Set the logging level")
     args = parser.parse_args()
 
+    logger = CommonLogger.getLogger("LINK FLAP", None, None);
     logger.setLevel(args.log_level)
 
     auth_failure_file = "/tmp/last_auth_failure_date"
@@ -168,4 +189,5 @@ if __name__ == "__main__":
     time_interval_hours = 6
     lft = LinkFlappingTest(time_interval=time_interval_hours)
     link_data = lft.get_rdma_link_failures()
-    lft.process_rdma_link_flapping()
+    issues = lft.process_rdma_link_flapping()
+    lft.logResults(issues, "host_seril100")
