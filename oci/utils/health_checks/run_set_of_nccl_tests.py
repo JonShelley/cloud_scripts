@@ -37,6 +37,9 @@ def convert_size(size_bytes):
     # modify s so that is matches the closest value in the acceptable_values list
     acceptable_values = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
     s = min(acceptable_values, key=lambda x:abs(x-s))
+    if s == 1024:
+        i += 1
+        s = 1
 
     return "%s %s" % (int(s), size_name[i])
 
@@ -82,6 +85,13 @@ def parse_nccl_output(output):
             tmp_data['msg_size'].append(msg_size)
             tmp_data['results'].append(float(result))
             tmp_data['time'].append(time_stamp)
+        # Get Avg bus BW
+        if len(columns) >= 3 and columns[1] == 'Avg':
+            msg_size = "Avg BW"
+            result = columns[5]  # Column 6 (0-based index)
+            tmp_data['msg_size'].append(msg_size)
+            # Append the results with only 2 decimal places
+            tmp_data['results'].append(f"{float(result):.2f}")
 
     logging.debug(f"Msg Size: {tmp_data['msg_size']}")
     logging.debug(f"Result: {tmp_data['results']}")
@@ -157,7 +167,8 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp, timeout=300):
             #mpirun_command += f" -x NCCL_BUFFSIZE=16777216"
             if args.nccl_qps_per_connection:
                 mpirun_command += f" -x NCCL_IB_QPS_PER_CONNECTION={args.nccl_qps_per_connection}"
-            mpirun_command += f" -x NCCL_IB_QPS_PER_CONNECTION=16"
+            else:
+                mpirun_command += f" -x NCCL_IB_QPS_PER_CONNECTION=1"
             mpirun_command += f" -x NCCL_IB_SPLIT_DATA_ON_QPS=0"
             if args.nccl_nchannels:
                 mpirun_command += f" -x NCCL_MIN_NCHANNELS={args.nccl_nchannels}"
@@ -219,6 +230,27 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp, timeout=300):
                 logging.info(f"An unexpected error occurred for job set {hostfile} --- {e}  ")
                 row_data = {'HostSet': [hostfile], 'Status': ['Unexpected Error']}
             time.sleep(wait)
+
+            # Check to see if Avg BW is above the minimum threshold
+            if 'Avg BW' in row_data:
+                
+                avg_bw = {"A2A": {"1": 220.0, "2": 45.0, "4": 42, "8": 37.5, "16": 34, "32": 32, "64": 30, "128": 30, "256": 30, "512": 30}, 
+                          "AR": {"1": 295.0, "2": 252, "4": 175, "8": 175, "16": 175, "32": 175, "64": 160, "128": 150, "256": 145, "512": 140},
+                          "AG": {},
+                          "BC": {},
+                          "GA": {},
+                          "RS": {},
+                          "RE": {},
+                          "SC": {},
+                          "SR": {},
+                          "HC": {}}
+
+                if run_type in avg_bw:
+                    if str(HPJ) in avg_bw[run_type]:
+                        logging.info(f"Checking Avg BW for {run_type} with {HPJ} nodes")
+                        if float(row_data['Avg BW']) < avg_bw[run_type][str(HPJ)]:
+                            logging.info(f"Avg BW {row_data['Avg BW']} below threshold {avg_bw[run_type][str(HPJ)]} for {run_type} with {HPJ} nodes")
+                            row_data['Status'] = ['Failed - Below Avg BW']
 
             if 'Status' not in row_data:
                 row_data['Status'] = ['Success']
@@ -472,12 +504,17 @@ def execute_command_in_sets_of_hosts_with_mpirun(args, dargs, date_stamp):
         # Write the results to a CSV file
         all_results_df.to_csv(report_name)
 
-    
-
     # remove any columns that starts with 'time_'
     tmp_results_df = all_results_df.loc[:, ~all_results_df.columns.str.startswith('time_')]
+
     logging.info("\nResults Report:")
     logging.info(f"\n{tabulate(tmp_results_df, headers='keys', tablefmt='simple_outline')}")
+
+    # Print out the HostSet with 'Failed' in the status
+    failed_hosts = all_results_df[all_results_df['Status'].str.contains('Failed')]
+    if not failed_hosts.empty:
+        logging.info("\nFailed Hosts:")
+        logging.info(f"\n{tabulate(failed_hosts, headers='keys', tablefmt='simple_outline')}")
 
     # if guidance run, report the maximum value in each column in a single row for each node count
     if args.guidance:
@@ -535,7 +572,7 @@ if __name__ == "__main__":
     parser.add_argument('--ssh_port', type=int, default=22, help="port for ssh to use")
     parser.add_argument('--no_ucx', action='store_true', help='Do not use UCX')
     parser.add_argument('--good_hosts', type=str, help='List of good hosts')
-    parser.add_argument('--nccl_qps_per_connection', type=int, required=False, default=2, help='NCCL IB QPS per connection')
+    parser.add_argument('--nccl_qps_per_connection', type=int, required=False, help='NCCL IB QPS per connection')
     parser.add_argument('--output_dir', type=str, required=False, help='Output directory for the results')
 
     # Parse the arguments
