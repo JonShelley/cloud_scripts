@@ -17,7 +17,15 @@ class XidChecker:
        
         self.results = {}
 
-
+        # Check for the following GPU Xid errors in dmesg
+        self.SXID_EC = {
+                "10001": {"description": "Host_priv_error", "severity": "Warning"},
+                "10002": {"description": "Host_priv_timeout", "severity": "Warning"},
+                "10003": {"description": "Host_unhandled_interrupt", "severity": "Fatal"},
+                "10004": {"description": "Host_thermal_event_start", "severity": "Warning"},
+                "10005": {"description": "Host_thermal_event_end", "severity": "Warning"}
+        }
+        
         # Check for the following GPU Xid errors in dmesg
         self.XID_EC = {
                 "1": {"description": "Invalid or corrupted push buffer stream", "severity": "Critical"},
@@ -156,7 +164,7 @@ class XidChecker:
                 "134": {"description": "Reserved", "severity": "Warn"},
                 "135": {"description": "Reserved", "severity": "Warn"},
                 "136": {"description": "Reserved", "severity": "Warn"},
-                "137": {"description": "Reserved", "severity": "Warn"},
+                "137": {"description": "NVLINK_FLA_PRIV_ERR", "severity": "Warn"},
                 "138": {"description": "Reserved", "severity": "Warn"},
                 "139": {"description": "Reserved", "severity": "Warn"},
                 "140": {"description": "Unrecovered ECC Error", "severity": "Warn"},
