@@ -512,7 +512,7 @@ def execute_command_in_sets_of_hosts_with_mpirun(args, dargs, date_stamp):
 
     # Print out the HostSet with 'Failed' in the status
     failed_hosts = all_results_df[all_results_df['Status'].str.contains('Failed')]
-    tmp_results_df = failed_hosts.loc[:, ~all_results_df.columns.str.startswith('time_')]
+    failed_hosts = failed_hosts.loc[:, ~all_results_df.columns.str.startswith('time_')]
     if not failed_hosts.empty:
         logging.info("\nFailed Hosts:")
         logging.info(f"\n{tabulate(failed_hosts, headers='keys', tablefmt='simple_outline')}")
