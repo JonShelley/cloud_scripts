@@ -234,7 +234,7 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp, timeout=300):
             # Check to see if Avg BW is above the minimum threshold
             if 'Avg BW' in row_data:
                 
-                avg_bw = {"A2A": {"1": 220.0, "2": 45.0, "4": 42, "8": 37.5, "16": 34, "32": 32, "64": 30, "128": 30, "256": 30, "512": 30}, 
+                avg_bw = {"A2A": {"1": 220.0, "2": 42.0, "4": 42, "8": 37.5, "16": 34, "32": 32, "64": 30, "128": 30, "256": 30, "512": 30}, 
                           "AR": {"1": 295.0, "2": 252, "4": 175, "8": 175, "16": 175, "32": 175, "64": 160, "128": 150, "256": 145, "512": 140},
                           "AG": {},
                           "BC": {},
@@ -512,6 +512,7 @@ def execute_command_in_sets_of_hosts_with_mpirun(args, dargs, date_stamp):
 
     # Print out the HostSet with 'Failed' in the status
     failed_hosts = all_results_df[all_results_df['Status'].str.contains('Failed')]
+    tmp_results_df = failed_hosts.loc[:, ~all_results_df.columns.str.startswith('time_')]
     if not failed_hosts.empty:
         logging.info("\nFailed Hosts:")
         logging.info(f"\n{tabulate(failed_hosts, headers='keys', tablefmt='simple_outline')}")
