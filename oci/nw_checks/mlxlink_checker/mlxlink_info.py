@@ -17,6 +17,7 @@ from  tabulate import tabulate
 import sys
 import os
 import re
+from glob import glob
 
 import logging.config
 
@@ -43,12 +44,23 @@ class MlxlinkInfo:
         #self.mlx5_interfaces = [15,17]
         self.timeout = 60
         self.host_info = {}
-        self.flap_duration_threshold = 3600*6
+        if args.flap_duration_threshold:
+            self.flap_duration_threshold = args.flap_duration_threshold
+        else:
+            self.flap_duration_threshold = 3600*6
         self.flap_startup_wait_time = 1800
+        self.args = args
 
-        self._collect_host_info()
+        if not self.read_json_files:
+            self._collect_host_info()
+        else:
+            print("Reading JSON files")
 
     def check_for_flaps(self):
+
+        if args.read_json_files:
+            return {}
+
         # Check system uptime
         cmd = "uptime -s"
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
@@ -228,8 +240,6 @@ class MlxlinkInfo:
         # Check to see if the link has flapped
         df.loc[df['flap_count'] > 0, 'Status'] = 'Failed - Link Flap Detected'
 
-
-
         return df    
 
     def gather_mlxlink_info(self):
@@ -245,170 +255,8 @@ class MlxlinkInfo:
             future_to_mlxlink = {executor.submit(self.get_mlxlink_info, mlx5_interface, 60): mlx5_interface for mlx5_interface in self.mlx5_interfaces}
             for future in concurrent.futures.as_completed(future_to_mlxlink):
                 mlx5_interface = future_to_mlxlink[future]
-                try:
-                    data = future.result()
-                    logging.debug(data)
-                    CMD_Status = data['status']['code']
-                    CMD_Status_msg = data['status']['message']
-                    logging.info(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
-                    if CMD_Status == 0:
-                        logging.info(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
-                        RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
-                        RawPhysicalBER = data['result']['output']['Physical Counters and BER Info']['Raw Physical BER']
-                        EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
-                        EffectivePhysicalBER = data['result']['output']['Physical Counters and BER Info']['Effective Physical BER']
-                        VendorName = data['result']['output']['Module Info']['Vendor Name']
-                        VendorSerialNumber = data['result']['output']['Module Info']['Vendor Serial Number']
-                        Recommended = data['result']['output']['Troubleshooting Info']['Recommendation']
-                        NicFWVersion = data['result']['output']['Tool Information']['Firmware Version']
-                        LinkState = data['result']['output']['Operational Info']['State']
-                        if 'result' in data and 'Histogram of FEC Errors' in data['result']['output']:
-                            FecBin0 = data['result']['output']['Histogram of FEC Errors']['Bin 0']['values'][1]
-                            FecBin6 = data['result']['output']['Histogram of FEC Errors']['Bin 6']['values'][1]
-                            FecBin7 = data['result']['output']['Histogram of FEC Errors']['Bin 7']['values'][1]
-                            FecBin8 = data['result']['output']['Histogram of FEC Errors']['Bin 8']['values'][1]
-                            FecBin9 = data['result']['output']['Histogram of FEC Errors']['Bin 9']['values'][1]
-                            FecBin10 = data['result']['output']['Histogram of FEC Errors']['Bin 10']['values'][1]
-                            FecBin11 = data['result']['output']['Histogram of FEC Errors']['Bin 11']['values'][1]
-                            FecBin12 = data['result']['output']['Histogram of FEC Errors']['Bin 12']['values'][1]
-                            FecBin13 = data['result']['output']['Histogram of FEC Errors']['Bin 13']['values'][1]
-                            FecBin14 = data['result']['output']['Histogram of FEC Errors']['Bin 14']['values'][1]
-                            FecBin15 = data['result']['output']['Histogram of FEC Errors']['Bin 15']['values'][1]
-                        else:
-                            FecBin0 = "-1"
-                            FecBin1 = "-1"
-                            FecBin2 = "-1"
-                            FecBin3 = "-1"
-                            FecBin4 = "-1"
-                            FecBin5 = "-1"
-                            FecBin6 = "-1"
-                            FecBin7 = "-1"
-                            FecBin8 = "-1"
-                            FecBin9 = "-1"
-                            FecBin10 = "-1"
-                            FecBin11 = "-1"
-                            FecBin12 = "-1"
-                            FecBin13 = "-1"
-                            FecBin14 = "-1"
-                            FecBin15 = "-1"
-                    else:
-                        RawPhysicalErrorsPerLane = [-1,-1,-1,-1]
-                        EffectivePhysicalErrors = '-1'
-                        EffectivePhysicalBER = '-1'
-                        RawPhysicalBER = '1e-99'
-                        LinkState = 'Unknown'
-                        Recommended = 'Unknown'
-                        VendorSerialNumber = 'Unknown'
-                        NicFWVersion = 'Unknown'
-                        if 'result' in data:
-                            RawPhysicalBER = data['result']['output']['Physical Counters and BER Info']['Raw Physical BER']
-                            RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
-                            EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
-                            EffectivePhysicalBER = data['result']['output']['Physical Counters and BER Info']['Effective Physical BER']
-                            VendorName = data['result']['output']['Module Info']['Vendor Name']
-                            VendorSerialNumber = data['result']['output']['Module Info']['Vendor Serial Number']
-                            Recommended = data['result']['output']['Troubleshooting Info']['Recommendation']
-                            LinkState = data['result']['output']['Operational Info']['State']
-                        if 'result' in data and 'Histogram of FEC Errors' in data['result']['output']:
-                            FecBin0 = data['result']['output']['Histogram of FEC Errors']['Bin 0']['values'][1]
-                            FecBin1 = data['result']['output']['Histogram of FEC Errors']['Bin 1']['values'][1]
-                            FecBin2 = data['result']['output']['Histogram of FEC Errors']['Bin 2']['values'][1]
-                            FecBin3 = data['result']['output']['Histogram of FEC Errors']['Bin 3']['values'][1]
-                            FecBin4 = data['result']['output']['Histogram of FEC Errors']['Bin 4']['values'][1]
-                            FecBin5 = data['result']['output']['Histogram of FEC Errors']['Bin 5']['values'][1]
-                            FecBin6 = data['result']['output']['Histogram of FEC Errors']['Bin 6']['values'][1]
-                            FecBin7 = data['result']['output']['Histogram of FEC Errors']['Bin 7']['values'][1]
-                            FecBin8 = data['result']['output']['Histogram of FEC Errors']['Bin 8']['values'][1]
-                            FecBin9 = data['result']['output']['Histogram of FEC Errors']['Bin 9']['values'][1]
-                            FecBin10 = data['result']['output']['Histogram of FEC Errors']['Bin 10']['values'][1]
-                            FecBin11 = data['result']['output']['Histogram of FEC Errors']['Bin 11']['values'][1]
-                            FecBin12 = data['result']['output']['Histogram of FEC Errors']['Bin 12']['values'][1]
-                            FecBin13 = data['result']['output']['Histogram of FEC Errors']['Bin 13']['values'][1]
-                            FecBin14 = data['result']['output']['Histogram of FEC Errors']['Bin 14']['values'][1]
-                            FecBin15 = data['result']['output']['Histogram of FEC Errors']['Bin 15']['values'][1]
-                        else:
-                            FecBin0 = '-1'
-                            FecBin1 = '-1'
-                            FecBin2 = '-1'
-                            FecBin3 = '-1'
-                            FecBin4 = '-1'
-                            FecBin5 = '-1'
-                            FecBin6 = '-1'
-                            FecBin7 = '-1'
-                            FecBin8 = '-1'
-                            FecBin9 = '-1'
-                            FecBin10 = '-1'
-                            FecBin11 = '-1'
-                            FecBin12 = '-1'
-                            FecBin13 = '-1'
-                            FecBin14 = '-1'
-                            FecBin15 = '-1'
-
-                    # Set the dataframe vars
-                    mlx5_interface = data['mlx5_interface']
-                    host = self.host_info['hostname']
-                    host_serial = self.host_info['serial']
-
-                    try:
-                        int(EffectivePhysicalErrors)
-                    except:
-                        EffectivePhysicalErrors = -1
-                    
-                    try:
-                        float(EffectivePhysicalBER)
-                    except:
-                        EffectivePhysicalBER = -1.0
-                    
-                    try:
-                        float(RawPhysicalBER)
-                    except:
-                        RawPhysicalBER = -1.0
-
-                    try:
-                        # Convert the list of strings to a list of integers
-                        RawPhysicalErrorsPerLane = [int(i) for i in RawPhysicalErrorsPerLane]
-                        print(f"RawPhysicalErrorsPerLane: {RawPhysicalErrorsPerLane}")
-                        RawPhyErrPerLaneStdev = np.std(RawPhysicalErrorsPerLane)
-                        # Convert the standard deviation to a float
-                        RawPhyErrPerLaneStdev = float(RawPhyErrPerLaneStdev)
-                    except:
-                        RawPhyErrPerLaneStdev = 0.0
-
-                    tmp_name = f"mlx5_{mlx5_interface}"
-                    if tmp_name in link_flaps:
-                        logging.debug(f"Link flap detected: {mlx5_interface}")
-                        flap_count = link_flaps[tmp_name]['flap_count']
-                        last_flap_time = link_flaps[tmp_name]['last_flap_time']
-                    else:
-                        flap_count = 0
-                        last_flap_time = None
-
-                    temp_df = pd.DataFrame({
-                                            'hostname': host,
-                                            'ip_addr': data['ip_address'],
-                                            'LinkState': LinkState,
-                                            'HostSerial': host_serial,
-                                            'CableSerial': VendorSerialNumber,
-                                            'mlx5_': mlx5_interface,
-                                            'nic_fw_version': NicFWVersion,
-                                            'EffPhyErrs': [int(EffectivePhysicalErrors)],
-                                            'EffPhyBER': float(EffectivePhysicalBER),
-                                            'RawPhyBER': float(RawPhysicalBER),
-                                            'RawPhyErrStdev': RawPhyErrPerLaneStdev,
-                                            'flap_count': flap_count,
-                                            'last_flap_time': last_flap_time,
-                                            'Recommended': Recommended,
-                                            'Status': 'Passed'
-                                            })
-
-#                    # Append the dataframe to the main dataframe
-                    df = pd.concat([df, temp_df], ignore_index=True)
-                    logging.debug(f"Appended data for {mlx5_interface} to dataframe")
-                except Exception as exc:
-                    logging.info('%r generated an exception: %s' % (mlx5_interface, exc))
-                    logging.info(traceback.format_exc())
-                else:
-                    logging.debug('mlx5_%r data collected' % (mlx5_interface))
+                data = future.result()
+                df = self.process_mlxlink_info(self, data)
 
         # Sort the dataframe by interface
         df = df.sort_values(
@@ -418,6 +266,263 @@ class MlxlinkInfo:
 
         # Print the dataframe
         logging.debug(df.to_string(index=False))
+        return df
+    
+    def process_mlxlink_info(self, data, mlx5_interface):
+        df = pd.DataFrame()
+        try:
+            logging.debug(data)
+            CMD_Status = data['status']['code']
+            CMD_Status_msg = data['status']['message']
+            logging.info(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
+            if CMD_Status == 0:
+                logging.info(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
+                RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
+                RawPhysicalBER = data['result']['output']['Physical Counters and BER Info']['Raw Physical BER']
+                EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
+                EffectivePhysicalBER = data['result']['output']['Physical Counters and BER Info']['Effective Physical BER']
+                VendorName = data['result']['output']['Module Info']['Vendor Name']
+                VendorSerialNumber = data['result']['output']['Module Info']['Vendor Serial Number']
+                Recommended = data['result']['output']['Troubleshooting Info']['Recommendation']
+                NicFWVersion = data['result']['output']['Tool Information']['Firmware Version']
+                LinkState = data['result']['output']['Operational Info']['State']
+                if 'result' in data and 'Histogram of FEC Errors' in data['result']['output']:
+                    FecBin0 = data['result']['output']['Histogram of FEC Errors']['Bin 0']['values'][1]
+                    FecBin6 = data['result']['output']['Histogram of FEC Errors']['Bin 6']['values'][1]
+                    FecBin7 = data['result']['output']['Histogram of FEC Errors']['Bin 7']['values'][1]
+                    FecBin8 = data['result']['output']['Histogram of FEC Errors']['Bin 8']['values'][1]
+                    FecBin9 = data['result']['output']['Histogram of FEC Errors']['Bin 9']['values'][1]
+                    FecBin10 = data['result']['output']['Histogram of FEC Errors']['Bin 10']['values'][1]
+                    FecBin11 = data['result']['output']['Histogram of FEC Errors']['Bin 11']['values'][1]
+                    FecBin12 = data['result']['output']['Histogram of FEC Errors']['Bin 12']['values'][1]
+                    FecBin13 = data['result']['output']['Histogram of FEC Errors']['Bin 13']['values'][1]
+                    FecBin14 = data['result']['output']['Histogram of FEC Errors']['Bin 14']['values'][1]
+                    FecBin15 = data['result']['output']['Histogram of FEC Errors']['Bin 15']['values'][1]
+                else:
+                    FecBin0 = "-1"
+                    FecBin1 = "-1"
+                    FecBin2 = "-1"
+                    FecBin3 = "-1"
+                    FecBin4 = "-1"
+                    FecBin5 = "-1"
+                    FecBin6 = "-1"
+                    FecBin7 = "-1"
+                    FecBin8 = "-1"
+                    FecBin9 = "-1"
+                    FecBin10 = "-1"
+                    FecBin11 = "-1"
+                    FecBin12 = "-1"
+                    FecBin13 = "-1"
+                    FecBin14 = "-1"
+                    FecBin15 = "-1"
+            else:
+                RawPhysicalErrorsPerLane = [-1,-1,-1,-1]
+                EffectivePhysicalErrors = '-1'
+                EffectivePhysicalBER = '-1'
+                RawPhysicalBER = '1e-99'
+                LinkState = 'Unknown'
+                Recommended = 'Unknown'
+                VendorSerialNumber = 'Unknown'
+                NicFWVersion = 'Unknown'
+                if 'result' in data:
+                    RawPhysicalBER = data['result']['output']['Physical Counters and BER Info']['Raw Physical BER']
+                    RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
+                    EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
+                    EffectivePhysicalBER = data['result']['output']['Physical Counters and BER Info']['Effective Physical BER']
+                    VendorName = data['result']['output']['Module Info']['Vendor Name']
+                    VendorSerialNumber = data['result']['output']['Module Info']['Vendor Serial Number']
+                    Recommended = data['result']['output']['Troubleshooting Info']['Recommendation']
+                    LinkState = data['result']['output']['Operational Info']['State']
+                if 'result' in data and 'Histogram of FEC Errors' in data['result']['output']:
+                    FecBin0 = data['result']['output']['Histogram of FEC Errors']['Bin 0']['values'][1]
+                    FecBin1 = data['result']['output']['Histogram of FEC Errors']['Bin 1']['values'][1]
+                    FecBin2 = data['result']['output']['Histogram of FEC Errors']['Bin 2']['values'][1]
+                    FecBin3 = data['result']['output']['Histogram of FEC Errors']['Bin 3']['values'][1]
+                    FecBin4 = data['result']['output']['Histogram of FEC Errors']['Bin 4']['values'][1]
+                    FecBin5 = data['result']['output']['Histogram of FEC Errors']['Bin 5']['values'][1]
+                    FecBin6 = data['result']['output']['Histogram of FEC Errors']['Bin 6']['values'][1]
+                    FecBin7 = data['result']['output']['Histogram of FEC Errors']['Bin 7']['values'][1]
+                    FecBin8 = data['result']['output']['Histogram of FEC Errors']['Bin 8']['values'][1]
+                    FecBin9 = data['result']['output']['Histogram of FEC Errors']['Bin 9']['values'][1]
+                    FecBin10 = data['result']['output']['Histogram of FEC Errors']['Bin 10']['values'][1]
+                    FecBin11 = data['result']['output']['Histogram of FEC Errors']['Bin 11']['values'][1]
+                    FecBin12 = data['result']['output']['Histogram of FEC Errors']['Bin 12']['values'][1]
+                    FecBin13 = data['result']['output']['Histogram of FEC Errors']['Bin 13']['values'][1]
+                    FecBin14 = data['result']['output']['Histogram of FEC Errors']['Bin 14']['values'][1]
+                    FecBin15 = data['result']['output']['Histogram of FEC Errors']['Bin 15']['values'][1]
+                else:
+                    FecBin0 = '-1'
+                    FecBin1 = '-1'
+                    FecBin2 = '-1'
+                    FecBin3 = '-1'
+                    FecBin4 = '-1'
+                    FecBin5 = '-1'
+                    FecBin6 = '-1'
+                    FecBin7 = '-1'
+                    FecBin8 = '-1'
+                    FecBin9 = '-1'
+                    FecBin10 = '-1'
+                    FecBin11 = '-1'
+                    FecBin12 = '-1'
+                    FecBin13 = '-1'
+                    FecBin14 = '-1'
+                    FecBin15 = '-1'
+
+            # Set the dataframe vars
+            mlx5_interface = data['mlx5_interface']
+            host = self.host_info['hostname']
+            host_serial = self.host_info['serial']
+
+            try:
+                int(EffectivePhysicalErrors)
+            except:
+                EffectivePhysicalErrors = -1
+            
+            try:
+                float(EffectivePhysicalBER)
+            except:
+                EffectivePhysicalBER = -1.0
+            
+            try:
+                float(RawPhysicalBER)
+            except:
+                RawPhysicalBER = -1.0
+
+            try:
+                # Convert the list of strings to a list of integers
+                RawPhysicalErrorsPerLane = [int(i) for i in RawPhysicalErrorsPerLane]
+                #print(f"RawPhysicalErrorsPerLane: {RawPhysicalErrorsPerLane}")
+                RawPhyErrPerLaneStdev = np.std(RawPhysicalErrorsPerLane)
+                # Convert the standard deviation to a float
+                RawPhyErrPerLaneStdev = float(RawPhyErrPerLaneStdev)
+            except:
+                RawPhyErrPerLaneStdev = 0.0
+
+            tmp_name = f"mlx5_{mlx5_interface}"
+
+            if self.args.read_json_files:
+                link_flaps = {}
+
+            if tmp_name in link_flaps:
+                logging.debug(f"Link flap detected: {mlx5_interface}")
+                flap_count = link_flaps[tmp_name]['flap_count']
+                last_flap_time = link_flaps[tmp_name]['last_flap_time']
+            else:
+                flap_count = 0
+                last_flap_time = None
+
+            temp_df = pd.DataFrame({
+                                    'hostname': host,
+                                    'ip_addr': data['ip_address'],
+                                    'LinkState': LinkState,
+                                    'HostSerial': host_serial,
+                                    'CableSerial': VendorSerialNumber,
+                                    'mlx5_': mlx5_interface,
+                                    'nic_fw_version': NicFWVersion,
+                                    'EffPhyErrs': [int(EffectivePhysicalErrors)],
+                                    'EffPhyBER': float(EffectivePhysicalBER),
+                                    'RawPhyBER': float(RawPhysicalBER),
+                                    'RawPhyErrStdev': RawPhyErrPerLaneStdev,
+                                    'flap_count': flap_count,
+                                    'last_flap_time': last_flap_time,
+                                    'Recommended': Recommended,
+                                    'Status': 'Passed'
+                                    })
+
+#                    # Append the dataframe to the main dataframe
+            df = pd.concat([df, temp_df], ignore_index=True)
+            logging.debug(f"Appended data for {mlx5_interface} to dataframe")
+        except Exception as exc:
+            logging.info('%r generated an exception: %s' % (mlx5_interface, exc))
+            logging.info(traceback.format_exc())
+        else:
+            logging.debug('mlx5_%r data collected' % (mlx5_interface))
+
+        return df
+    
+    def read_json_files(self):
+        # Get the list of JSON files
+        json_files = glob('*_mlx5_*.json')
+
+        all_df = pd.DataFrame()
+
+        # Loop through the JSON files
+        for file in json_files:
+            # Read the JSON file
+            with open(file, 'r') as infile:
+                data = json.load(infile)
+
+            mlx5_inter = file.split('_')[2].split('.')[0]
+            hostname = file.split('_')[0]
+
+            data['mlx5_interface'] = f"{mlx5_inter}"
+            data['ip_address'] = self.address
+
+            # Add the hostname to the data
+            self.host_info['hostname'] = hostname
+            self.host_info['serial'] = 'Unknown'
+            data['hostname'] = self.host_info['hostname']
+
+            logging.debug(f"Data: {type(data)} - {data}")
+
+            #print("Data: ", data)
+
+            df = self.process_mlxlink_info(data, mlx5_inter)
+
+            # Append the dataframe to the main dataframe
+            all_df = pd.concat([all_df, df], ignore_index=True)
+            
+        return all_df
+
+    def display_mlxlink_info_json(self):
+        # Read the data from the JSON files
+        df = self.read_json_files()
+
+        # Print the dataframe
+        logging.debug(f"Dataframe: {df}")
+        print(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
+
+        # Check the mlxlink info
+        df = self.check_mlxlink_info(df)
+
+        # Sort the dataframe by hostname and interface
+        df = df.sort_values(
+            by=["hostname", "mlx5_"],
+            key=lambda x: np.argsort(index_natsorted(df["hostname"]))
+        )
+
+        # Tabulate the df
+        print(f"self.args.error: {self.args.error}")
+        if self.args.error:
+            print("Checking for errors")
+            # Filter the dataframe
+            fail_df = df[df['Status'].str.contains('Failed')]
+
+            # Print the filtered dataframe if not empty
+            if not fail_df.empty:
+                logging.info(f"\n{tabulate(fail_df, headers='keys', tablefmt='simple_outline')}")
+            else:
+                logging.info(f"No errors found in the dataframe")
+        else:
+            logging.info(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
+
+        # Save the dataframe to a file
+        if self.args.output_dir:
+            if not os.path.exists(self.args.output_dir):
+                os.makedirs(self.args.output_dir)
+            os.chdir(self.args.output_dir)
+        
+        if self.args.file_format == 'csv':
+            # Write the dataframe to a CSV file
+            csv_filename = f'mlxlink_info_{self.args.address}_{self.get_date_stamp()}.csv'
+            df.to_csv(csv_filename, index=False)
+            logging.debug(f"Dataframe saved to {csv_filename}")
+        elif self.args.file_format == 'json':
+            # Write the dataframe to a JSON file
+            json_filename = f'mlxlink_info_{self.args.address}_{self.get_date_stamp()}.json'
+            df.to_json(json_filename, orient='records')
+            logging.debug(f"Dataframe saved to {json_filename}")
+
         return df
 
 if __name__ == "__main__":
@@ -435,6 +540,8 @@ if __name__ == "__main__":
     parser.add_argument('--eff_threshold', type=str, default='100000', help='specify the Effective Physical Error threshold')
     parser.add_argument('--file_format', type=str, default='json', help='specify the output file format: csv,json (default: %(default)s')
     parser.add_argument('--output_dir', type=str, help='specify the output dir name')
+    parser.add_argument('--read_json_files', action='store_true', help='Load json files')
+    parser.add_argument('--flap_duration_threshold', type=int, help='specify the flap duration threshold in seconds')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -444,6 +551,10 @@ if __name__ == "__main__":
 
     # Create the MlxlinkInfo object
     mlxlink_info = MlxlinkInfo(args)
+
+    if args.read_json_files:
+        mlxlink_info.display_mlxlink_info_json()
+        sys.exit(0)
 
     # Get the host info
     host_info = mlxlink_info.get_host_info()

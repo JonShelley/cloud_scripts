@@ -35,7 +35,8 @@ class run_mlxlink_info:
         self.exe_file = args.exe_file
         self.user = args.user
         self.max_workers = args.max_workers
-        self.port = args.port 
+        self.port = args.port
+        self.flap_duration_threshold = args.flap_duration_threshold
 
     def get_date_stamp(self):
         return self.date_stamp
@@ -103,7 +104,7 @@ class run_mlxlink_info:
 
     def execute_file_on_host(self, host):
         logging.debug(f'Executing {self.exe_file} on {host}')
-        cmd = f'ssh -p {self.port} {self.user}@{host} "cd {self.script_directory}; python3 {self.exe_file} --date_stamp {self.date_stamp} -a {host} --ber_threshold {self.ber_threshold} --eff_threshold {self.eff_threshold} "'
+        cmd = f'ssh -p {self.port} {self.user}@{host} "cd {self.script_directory}; python3 {self.exe_file} --date_stamp {self.date_stamp} -a {host} --ber_threshold {self.ber_threshold} --eff_threshold {self.eff_threshold} --flap_duration_threshold {self.flap_duration_threshold}"'
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
@@ -154,6 +155,7 @@ class run_mlxlink_info:
         
         # Print out results that failed
         fail_df = df[df['Status'].str.contains('Failed')]
+        warn_df = df[df['Status'].str.contains('Warning')]
 
         # Print out the results
         if not fail_df.empty:
@@ -194,6 +196,13 @@ class run_mlxlink_info:
                 eff_df.to_csv(f'eff_hosts_{self.date_stamp}.csv', index=False)
                 eff_df.to_json(f'eff_hosts_{self.date_stamp}.json', orient='records')
         else:
+            if self.args.warning:
+                if not warn_df.empty:
+                    logging.info('The following hosts have warnings')
+                    logging.info(f"\n{tabulate(warn_df, headers='keys', tablefmt='simple_outline')}")
+                    # Write out the warning hosts to a file
+                    warn_df.to_csv(f'warning_hosts_{self.date_stamp}.csv', index=False)
+                    warn_df.to_json(f'warning_hosts_{self.date_stamp}.json', orient='records')
             logging.info('All tests passed')
             logging.debug(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
         
@@ -222,6 +231,8 @@ if __name__ == '__main__':
     parser.add_argument('--eff_threshold', type=str, default='0', help='specify the BER threshold')
     parser.add_argument('--max_workers', type=int, default=32, help='specify the maximum number of workers (default: %(default)s)')
     parser.add_argument('-p', '--port', type=int, default=22, help='specify the ssh port number (default: %(default)s)')
+    parser.add_argument('-w', '--warning', action='store_true', help='enable warning messages')
+    parser.add_argument('--flap_duration_threshold', type=int, default=12, help='specify the link flap duration threshold in hours(default: %(default)s)')
 
     # Execute the parse_args() method
     args = parser.parse_args()
