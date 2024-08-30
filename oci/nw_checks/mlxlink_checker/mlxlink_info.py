@@ -44,6 +44,7 @@ class MlxlinkInfo:
         #self.mlx5_interfaces = [15,17]
         self.timeout = 60
         self.host_info = {}
+        self.host_info['hostname'] = 'Unknown'
         if args.flap_duration_threshold:
             self.flap_duration_threshold = args.flap_duration_threshold
         else:
@@ -441,6 +442,7 @@ class MlxlinkInfo:
         return df
     
     def read_json_files(self):
+        print("Reading JSON files")
         # Get the list of JSON files
         json_files = glob('*_mlx5_*.json')
 
