@@ -551,6 +551,9 @@ if __name__ == "__main__":
     # Set the log level to one of the following: DEBUG, INFO, WARNING, ERROR, CRITICAL
     logging.getLogger().setLevel(args.log.upper())
 
+    # print the arguments
+    logging.debug(f"Arguments: {args}")
+
     # Create the MlxlinkInfo object
     mlxlink_info = MlxlinkInfo(args)
 
