@@ -263,7 +263,7 @@ class MlxlinkInfo:
                 all_df = pd.concat([all_df, df], ignore_index=True)
 
         # Sort the dataframe by interface
-        all_df = df.sort_values(
+        all_df = all_df.sort_values(
             by="mlx5_",
             key=lambda x: np.argsort(index_natsorted(all_df["mlx5_"]))
         )
