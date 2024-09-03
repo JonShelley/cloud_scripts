@@ -37,6 +37,7 @@ class run_mlxlink_info:
         self.max_workers = args.max_workers
         self.port = args.port
         self.flap_duration_threshold = args.flap_duration_threshold
+        self.args = args
 
     def get_date_stamp(self):
         return self.date_stamp
