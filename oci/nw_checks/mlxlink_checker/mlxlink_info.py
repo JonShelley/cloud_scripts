@@ -257,7 +257,7 @@ class MlxlinkInfo:
             for future in concurrent.futures.as_completed(future_to_mlxlink):
                 mlx5_interface = future_to_mlxlink[future]
                 data = future.result()
-                df = self.process_mlxlink_info(self, data)
+                df = self.process_mlxlink_info(data, mlx5_interface)
 
         # Sort the dataframe by interface
         df = df.sort_values(
@@ -273,6 +273,8 @@ class MlxlinkInfo:
         df = pd.DataFrame()
         try:
             logging.debug(data)
+            logging.debug(data['status'])
+            
             CMD_Status = data['status']['code']
             CMD_Status_msg = data['status']['message']
             logging.info(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
