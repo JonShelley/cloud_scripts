@@ -45,6 +45,7 @@ class MlxlinkInfo:
         self.timeout = 60
         self.host_info = {}
         self.host_info['hostname'] = 'Unknown'
+        self.host_info['serial'] = 'Unknown'
         if args.flap_duration_threshold:
             self.flap_duration_threshold = args.flap_duration_threshold
         else:
@@ -247,9 +248,6 @@ class MlxlinkInfo:
         # Create an empty dataframe
         df = pd.DataFrame()
 
-        # Check for link flaps
-        link_flaps = self.check_for_flaps()
-
         # We can use a with statement to ensure threads are cleaned up promptly
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
             # Start the load operations and mark each future with its mlx5 interface
@@ -265,6 +263,20 @@ class MlxlinkInfo:
             key=lambda x: np.argsort(index_natsorted(df["mlx5_"]))
         )
 
+        if self.args.read_json_files:
+            link_flaps = {}
+        else:
+            link_flaps = self.check_for_flaps()
+
+        for interface in self.mlx5_interfaces:
+            tmp_name = f"mlx5_{interface}"
+            if tmp_name in link_flaps:
+                logging.debug(f"Link flap detected: {mlx5_interface}")
+                flap_count = link_flaps[tmp_name]['flap_count']
+                last_flap_time = link_flaps[tmp_name]['last_flap_time']
+                df.loc[df['mlx5_'] == tmp_name, 'flap_count'] = flap_count
+                df.loc[df['mlx5_'] == tmp_name, 'last_flap_time'] = last_flap_time
+                
         # Print the dataframe
         logging.debug(df.to_string(index=False))
         return df
@@ -401,19 +413,6 @@ class MlxlinkInfo:
             except:
                 RawPhyErrPerLaneStdev = 0.0
 
-            tmp_name = f"mlx5_{mlx5_interface}"
-
-            if self.args.read_json_files:
-                link_flaps = {}
-
-            if tmp_name in link_flaps:
-                logging.debug(f"Link flap detected: {mlx5_interface}")
-                flap_count = link_flaps[tmp_name]['flap_count']
-                last_flap_time = link_flaps[tmp_name]['last_flap_time']
-            else:
-                flap_count = 0
-                last_flap_time = None
-
             temp_df = pd.DataFrame({
                                     'hostname': host,
                                     'ip_addr': data['ip_address'],
@@ -426,8 +425,8 @@ class MlxlinkInfo:
                                     'EffPhyBER': float(EffectivePhysicalBER),
                                     'RawPhyBER': float(RawPhysicalBER),
                                     'RawPhyErrStdev': RawPhyErrPerLaneStdev,
-                                    'flap_count': flap_count,
-                                    'last_flap_time': last_flap_time,
+                                    'flap_count': 0,
+                                    'last_flap_time': None,
                                     'Recommended': Recommended,
                                     'Status': 'Passed'
                                     })
