@@ -53,7 +53,7 @@ class MlxlinkInfo:
         self.flap_startup_wait_time = 1800
         self.args = args
 
-        if not self.read_json_files:
+        if not args.read_json_files:
             self._collect_host_info()
         else:
             print("Reading JSON files")
