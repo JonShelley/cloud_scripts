@@ -139,7 +139,9 @@ class MlxlinkInfo:
             if result.returncode != 0:
                 logging.error(f"dmidecode command not found {cmd}")
                 cmd = "chroot /host dmidecode -s system-serial-number"
+                logging.debug(f"Running command: {cmd}")
                 result2 = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+                logging.debug(f"Result: {result2}")
                 if result2.returncode != 0:
                     logging.error(f"Error getting host serial: {cmd}")
                     self.host_info['serial'] = 'Unknown'
@@ -153,10 +155,12 @@ class MlxlinkInfo:
                     cmd = "dmidecode -s system-serial-number"
                 else:
                     cmd = "sudo dmidecode -s system-serial-number"
+                logging.debug(f"Root: Running command: {cmd}")
                 result = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-
+                logging.debug(f"Result: {result}")
                 # Decode the output from bytes to string
                 output = result.stdout
+                logging.info(f"Host serial: {output}")
                 self.host_info['serial'] = output.strip()
         except Exception as e:
             logging.info(f"Error getting host serial: {e}")
@@ -246,7 +250,7 @@ class MlxlinkInfo:
 
     def gather_mlxlink_info(self):
         # Create an empty dataframe
-        df = pd.DataFrame()
+        all_df = pd.DataFrame()
 
         # We can use a with statement to ensure threads are cleaned up promptly
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
@@ -256,11 +260,12 @@ class MlxlinkInfo:
                 mlx5_interface = future_to_mlxlink[future]
                 data = future.result()
                 df = self.process_mlxlink_info(data, mlx5_interface)
+                all_df = pd.concat([all_df, df], ignore_index=True)
 
         # Sort the dataframe by interface
-        df = df.sort_values(
+        all_df = df.sort_values(
             by="mlx5_",
-            key=lambda x: np.argsort(index_natsorted(df["mlx5_"]))
+            key=lambda x: np.argsort(index_natsorted(all_df["mlx5_"]))
         )
 
         if self.args.read_json_files:
@@ -274,12 +279,12 @@ class MlxlinkInfo:
                 logging.debug(f"Link flap detected: {mlx5_interface}")
                 flap_count = link_flaps[tmp_name]['flap_count']
                 last_flap_time = link_flaps[tmp_name]['last_flap_time']
-                df.loc[df['mlx5_'] == tmp_name, 'flap_count'] = flap_count
-                df.loc[df['mlx5_'] == tmp_name, 'last_flap_time'] = last_flap_time
-                
+                all_df.loc[df['mlx5_'] == tmp_name, 'flap_count'] = flap_count
+                all_df.loc[df['mlx5_'] == tmp_name, 'last_flap_time'] = last_flap_time
+
         # Print the dataframe
-        logging.debug(df.to_string(index=False))
-        return df
+        logging.debug(all_df.to_string(index=False))
+        return all_df
     
     def process_mlxlink_info(self, data, mlx5_interface):
         df = pd.DataFrame()
