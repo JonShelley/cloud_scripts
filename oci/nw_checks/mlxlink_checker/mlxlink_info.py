@@ -102,11 +102,12 @@ class MlxlinkInfo:
                 logging.error(f"Link down event: {line}")
 
                 # Define the pattern
-                pattern = r"\[(\w{3} \w{3} \d{2} \d{2}:\d{2}:\d{2} \d{4})\].*(rdma\d+): Link (\w+)"
+                pattern = r"\[(\w{3} \w{3} {1,2}\d{1,2} \d{2}:\d{2}:\d{2} \d{4})\].*(rdma\d+): Link (\w+)"
 
                 # Search for the date, rdma interface, and link status
                 match = re.search(pattern, line)
 
+                logging.debug(f"Match: {match}")
                 # If a match was found, print it
                 if match:
                     link_flap_time = datetime.strptime(match.group(1), "%a %b %d %H:%M:%S %Y")
@@ -116,6 +117,7 @@ class MlxlinkInfo:
                     logging.info(f"Date and Time: {link_flap_time}, Interface: {mlx_interface}, Link Status: {link_status}")
                     
                     # Check to see if the link flap time is within the last x hours
+                    logging.debug(f"Link flap time: {link_flap_time}, Uptime: {uptime_date}, Diff: {(link_flap_time - uptime_date).total_seconds()}, Duration: {self.flap_duration_threshold}")
                     if (datetime.now() - link_flap_time).total_seconds() < self.flap_duration_threshold:
                         # Check to see if the link_flap_time > than system uptime + 30 minutes
                         if (link_flap_time - uptime_date).total_seconds() > self.flap_startup_wait_time:
@@ -275,12 +277,19 @@ class MlxlinkInfo:
 
         for interface in self.mlx5_interfaces:
             tmp_name = f"mlx5_{interface}"
+
+            # Print the condition
+            print(f"Condition (all_df['mlx5_'] == tmp_name): {interface} - {tmp_name}")
+            print(all_df['mlx5_'] == tmp_name)
+
             if tmp_name in link_flaps:
-                logging.debug(f"Link flap detected: {mlx5_interface}")
+                logging.debug(f"Link flap detected: mlx5_{interface}")
+                logging.debug(f"Flap count: {link_flaps[tmp_name]['flap_count']}")
+                logging.debug(f"Last flap time: {link_flaps[tmp_name]['last_flap_time']}")
                 flap_count = link_flaps[tmp_name]['flap_count']
                 last_flap_time = link_flaps[tmp_name]['last_flap_time']
-                all_df.loc[df['mlx5_'] == tmp_name, 'flap_count'] = flap_count
-                all_df.loc[df['mlx5_'] == tmp_name, 'last_flap_time'] = last_flap_time
+                all_df.loc[all_df['mlx5_'] == str(interface), 'flap_count'] = flap_count
+                all_df.loc[all_df['mlx5_'] == str(interface), 'last_flap_time'] = last_flap_time
 
         # Print the dataframe
         logging.debug(all_df.to_string(index=False))
