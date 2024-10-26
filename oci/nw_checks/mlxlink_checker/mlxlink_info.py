@@ -189,9 +189,9 @@ class MlxlinkInfo:
                 logging.error(f"mlxlink command not found")
                 sys.exit(1)
             else:
-                cmd = f"chroot /host mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --json"
+                cmd = f"chroot /host mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --cable --dump --json"
         else:
-            cmd = f"sudo mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --json"
+            cmd = f"sudo mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --cable --dump --json"
         logging.debug(f"Running command: {cmd}")
 
         # Run the command and capture the output
@@ -235,9 +235,9 @@ class MlxlinkInfo:
     def check_mlxlink_info(self, df):
         # Check to see if the FW is older than 28.39.2500
         df.loc[df['nic_fw_version'] < '28.39.2500', 'Status'] = 'Warning - FW < 28.39.2500'
-        
-        # Check to see if the link state is up
-        df.loc[df['LinkState'] != 'Active', 'Status'] = 'Failed - LinkState != Active'
+
+        # Check to see if bad signal integrity is in the recommended message
+        df.loc[df['Recommended'].str.contains('Bad signal integrity', case=False), 'Status'] = 'Failed - Bad Signal Integrity'
         
         # Check to see if the raw physical BER is lower than 1E-9
         df.loc[df['RawPhyBER'] > float(self.ber_threshold), 'Status'] = 'Failed - RawPhyBER > {}'.format(self.ber_threshold) 
@@ -247,6 +247,9 @@ class MlxlinkInfo:
 
         # Check to see if the link has flapped
         df.loc[df['flap_count'] > 0, 'Status'] = 'Failed - Link Flap Detected'
+
+        # Check to see if the link state is up
+        df.loc[df['LinkState'] != 'Active', 'Status'] = 'Failed - LinkState != Active'
 
         return df    
 
