@@ -105,7 +105,11 @@ class run_mlxlink_info:
 
     def execute_file_on_host(self, host):
         logging.debug(f'Executing {self.exe_file} on {host}')
-        cmd = f'ssh -p {self.port} {self.user}@{host} "cd {self.script_directory}; python3 {self.exe_file} --date_stamp {self.date_stamp} -a {host} --ber_threshold {self.ber_threshold} --eff_threshold {self.eff_threshold} --flap_duration_threshold {self.flap_duration_threshold}"'
+        if self.venv:
+            cmd = f'ssh -p {self.port} {self.user}@{host} "source {self.venv}/bin/activate; cd {self.script_directory}; python3 {self.exe_file} --date_stamp {self.date_stamp} -a {host} --ber_threshold {self.ber_threshold} --eff_threshold {self.eff_threshold} --flap_duration_threshold {self.flap_duration_threshold}"'
+        else:
+            cmd = f'ssh -p {self.port} {self.user}@{host} "cd {self.script_directory}; python3 {self.exe_file} --date_stamp {self.date_stamp} -a {host} --ber_threshold {self.ber_threshold} --eff_threshold {self.eff_threshold} --flap_duration_threshold {self.flap_duration_threshold}"'
+        
         logging.debug(cmd)
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
