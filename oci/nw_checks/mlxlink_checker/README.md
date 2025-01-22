@@ -1,6 +1,6 @@
 # Initial Setup
 Create a python virtual environment
-cd <path to cloud_scripts>/oci/nw
+cd <path_to_cloud_scripts>/oci/nw
 - python3 -m venv venv
 - source venv/bin/activate
 
