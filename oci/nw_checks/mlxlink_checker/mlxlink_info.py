@@ -197,6 +197,16 @@ class MlxlinkInfo:
         # Run the command and capture the output
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
+        # Make results directory if one does not exist
+        results_dir = 'mlxlink_files'
+        if not os.path.exists(results_dir):
+            os.makedirs(results_dir)
+
+        # write the output to a file
+        filename = f"{results_dir}/{self.host_info['hostname']}_mlx5_{mlx5_inter}.json"
+        with open(filename, 'w') as outfile:
+            outfile.write(output.stdout)
+
         # Check for errors
         if output.returncode != 0:
             logging.debug(f"Error running command: {cmd}")
