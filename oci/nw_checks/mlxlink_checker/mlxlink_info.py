@@ -40,7 +40,8 @@ class MlxlinkInfo:
         self.ber_threshold = args.ber_threshold
         self.eff_threshold = args.eff_threshold
 
-        self.mlx5_interfaces = [0,1,3,4,5,6,7,8,9,10,12,13,14,15,16,17]
+        self.mlx5_interfaces = args.mlx_interfaces
+        
         #self.mlx5_interfaces = [15,17]
         self.timeout = 60
         self.host_info = {}
@@ -184,6 +185,7 @@ class MlxlinkInfo:
         if output.returncode != 0:
             logging.error(f"mlxlink command not found")
             cmd = "chroot /host mlxlink --version"
+            mst_cmd = "chroot /host mst status -v"
             output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
             if output.returncode != 0:
                 logging.error(f"mlxlink command not found")
@@ -192,6 +194,8 @@ class MlxlinkInfo:
                 cmd = f"chroot /host mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --cable --dump --json"
         else:
             cmd = f"sudo mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --cable --dump --json"
+            mst_cmd = "mst status -v"
+        
         logging.debug(f"Running command: {cmd}")
 
         # Run the command and capture the output
@@ -206,6 +210,9 @@ class MlxlinkInfo:
         filename = f"{results_dir}/{self.host_info['hostname']}_mlx5_{mlx5_inter}.json"
         with open(filename, 'w') as outfile:
             outfile.write(output.stdout)
+
+        # Get the mst status for the host
+        mst_cmd = "mst status -v"
 
         # Check for errors
         if output.returncode != 0:
@@ -559,6 +566,10 @@ if __name__ == "__main__":
     # Create the parser
     parser = argparse.ArgumentParser(description="Gather mlxlink info")
 
+    # Define the custom type function before it's used
+    def list_of_strings(arg):
+        return arg.split(',')
+    
     # Add the logging level argument
     parser.add_argument('-l', '--log', default='critical', help='Set the logging level (default: %(default)s)')
     parser.add_argument('-e', '--error', action='store_true', help='Set the error reporting')
@@ -572,6 +583,7 @@ if __name__ == "__main__":
     parser.add_argument('--output_dir', type=str, help='specify the output dir name')
     parser.add_argument('--read_json_files', action='store_true', help='Load json files')
     parser.add_argument('--flap_duration_threshold', type=int, help='specify the flap duration threshold in seconds')
+    parser.add_argument('--mlx_interfaces', type=list_of_strings, default="0,1,3,4,5,6,7,8,9,10,12,13,14,15,16,17", help='specify the mlx interfaces to check %(default)s')
 
     # Parse the arguments
     args = parser.parse_args()
