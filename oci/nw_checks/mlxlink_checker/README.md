@@ -47,3 +47,8 @@ Example: Run the script. Check for link flaps in the past 48 hours. Only flag li
 ```
 python3 run_mlxlink_info.py --hostfile hostlist.txt --exe_file mlxlink_info.py --script_directory /app/sce/cloud_scripts/oci/nw_checks/mlxlink_checker -e --eff_threshold 100000 --flap_duration_threshold 172800 --venv /app/sce/cloud_scripts/oci/nw_checks/mlxlink_checker/venv
 ```
+
+## If you only want to collect the data that mlxlink_info.py collect and put it in a file for later review then you can run mlxlink_info_min.py. This will generate a json file which includes the hostname.
+```
+python3 mlxlink_info_min.py
+```
