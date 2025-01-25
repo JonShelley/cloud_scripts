@@ -87,12 +87,6 @@ mst_cmd = "sudo mst status -v"
 mst_output = subprocess.run(mst_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
 # Parse in the mst status and store the PCI and RDMA information
-# Ouput looks like:
-# DEVICE_TYPE             MST                           PCI       RDMA            NET                                     NUMA  
-# ConnectX7(rev:0)        /dev/mst/mt4129_pciconf7.1    d5:00.1   mlx5_17         net-rdma15                              1     
-#
-# ConnectX7(rev:0)        /dev/mst/mt4129_pciconf7      d5:00.0   mlx5_16         net-rdma14                              1 
-
 pattern = r".*\s+.*\s+(\S+)\s+(\S+)\s+\S+\s+\d+"
 mst_dict = {}
 for line in mst_output.stdout.split('\n'):
@@ -104,9 +98,18 @@ print(mst_dict)
 data['mst_status'] = mst_dict
 
 # Get the mlx5 link information for each mlx5 interface
-#cmd = f"mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --cable --dump --json"
+for key in mst_dict:
+    print(f"Key: {key}, Value: {mst_dict[key]}")
+    mlx5_inter = mst_dict[key]
+    cmd = f"sudo mlxlink -m -e -c -d {mlx5_inter} --rx_fec_histogram --show_histogram --cable --dump --json"
+    
+    output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    if output.returncode != 0:
+        print(f"cmd: {cmd}, returncode: {output.returncode}")
+        print(f"Error getting mlxlink info")
+    data[key] = json.loads(output.stdout)
 
 # write data to a json file
 
-with open(f'mlxlink_info_{data["hostname"]}.json', 'w') as f:
+with open(f'mlxlink_info_min_{data["hostname"]}.json', 'w') as f:
     json.dump(data, f, indent=4)

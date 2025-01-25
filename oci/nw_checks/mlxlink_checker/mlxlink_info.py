@@ -57,7 +57,7 @@ class MlxlinkInfo:
         if not args.read_json_files:
             self._collect_host_info()
         else:
-            print("Reading JSON files")
+            logging.info("Reading JSON files")
 
     def check_for_flaps(self):
 
@@ -299,8 +299,8 @@ class MlxlinkInfo:
             tmp_name = f"mlx5_{interface}"
 
             # Print the condition
-            print(f"Condition (all_df['mlx5_'] == tmp_name): {interface} - {tmp_name}")
-            print(all_df['mlx5_'] == tmp_name)
+            logging.debug(f"Condition (all_df['mlx5_'] == tmp_name): {interface} - {tmp_name}")
+            logging.debug(all_df['mlx5_'] == tmp_name)
 
             if tmp_name in link_flaps:
                 logging.debug(f"Link flap detected: mlx5_{interface}")
@@ -323,9 +323,9 @@ class MlxlinkInfo:
             
             CMD_Status = data['status']['code']
             CMD_Status_msg = data['status']['message']
-            logging.info(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
+            logging.debug(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
             if CMD_Status == 0:
-                logging.info(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
+                logging.debug(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
                 RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
                 RawPhysicalBER = data['result']['output']['Physical Counters and BER Info']['Raw Physical BER']
                 EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
@@ -477,7 +477,7 @@ class MlxlinkInfo:
         return df
     
     def read_json_files(self):
-        print("Reading JSON files")
+        logging.debug("Reading JSON files")
         # Get the list of JSON files
         json_files = glob('*_mlx5_*.json')
 
@@ -511,13 +511,69 @@ class MlxlinkInfo:
             
         return all_df
 
+    def read_min_json_files(self):
+        logging.debug("Reading Min JSON files")
+
+        if self.args.process_min_files == 'CWD':
+            # Get the current working directory
+            files_dir = os.getcwd()
+        else:
+            files_dir = self.args.process_min_files
+
+        # Check to see if the directory exists
+        if not os.path.exists(files_dir):
+            logging.error(f"Min JSON files directory not found: {files_dir}")
+            sys.exit(1)
+
+        # Get the list of JSON files
+        logging.debug(f"Files dir: {files_dir}")
+        logging.debug(f"{files_dir}/mlxlink_info_min_*.json")
+        json_files = glob(f'{files_dir}/mlxlink_info_min_*.json')
+
+        all_df = pd.DataFrame()
+
+        # Loop through the JSON files
+        for file in json_files:
+            logging.debug(f"File: {file}")
+            # Read the JSON file
+            with open(file, 'r') as infile:
+                data = json.load(infile)
+
+            hostname = data['hostname']
+            logging.debug(f"Hostname: {hostname}")
+
+            for key in data['mst_status']:
+                logging.debug(f"Key: {key}, Data: {data['mst_status'][key]}")
+                data['mlx5_interface'] = data['mst_status'][key]
+                data['ip_address'] = None
+                mlx5_inter = data['mst_status'][key][5:]
+
+                # Add the hostname to the data
+                self.host_info['hostname'] = hostname
+                self.host_info['serial'] = data['serial_number']
+                data['hostname'] = self.host_info['hostname']
+
+                logging.debug(f"Data: {type(data)} - {data}")
+                data[key]['mlx5_interface'] = f"{mlx5_inter}"
+                data[key]['ip_address'] = self.address
+
+                df = self.process_mlxlink_info(data[key], mlx5_inter)
+
+                # Append the dataframe to the main dataframe
+                all_df = pd.concat([all_df, df], ignore_index=True)
+            
+        return all_df        
+
     def display_mlxlink_info_json(self):
         # Read the data from the JSON files
-        df = self.read_json_files()
+        if self.args.process_min_files:
+            df = self.read_min_json_files()
+        else:
+            df = self.read_json_files()
 
         # Print the dataframe
         logging.debug(f"Dataframe: {df}")
-        print(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
+        logging.debug(f"\n{tabulate(df, headers='keys', tablefmt='simple_outline')}")
 
         # Check the mlxlink info
         df = self.check_mlxlink_info(df)
@@ -529,9 +585,9 @@ class MlxlinkInfo:
         )
 
         # Tabulate the df
-        print(f"self.args.error: {self.args.error}")
+        logging.debug(f"self.args.error: {self.args.error}")
         if self.args.error:
-            print("Checking for errors")
+            logging.debug("Checking for errors")
             # Filter the dataframe
             fail_df = df[df['Status'].str.contains('Failed')]
 
@@ -584,6 +640,7 @@ if __name__ == "__main__":
     parser.add_argument('--read_json_files', action='store_true', help='Load json files')
     parser.add_argument('--flap_duration_threshold', type=int, help='specify the flap duration threshold in seconds')
     parser.add_argument('--mlx_interfaces', type=list_of_strings, default="0,1,3,4,5,6,7,8,9,10,12,13,14,15,16,17", help='specify the mlx interfaces to check %(default)s')
+    parser.add_argument('--process_min_files', type=str, help='specify the the directory where the mlxlink_info_min files are located: "CWD" or "path to the results dir"')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -598,6 +655,10 @@ if __name__ == "__main__":
     mlxlink_info = MlxlinkInfo(args)
 
     if args.read_json_files:
+        mlxlink_info.display_mlxlink_info_json()
+        sys.exit(0)
+
+    if args.process_min_files:
         mlxlink_info.display_mlxlink_info_json()
         sys.exit(0)
 
@@ -647,3 +708,4 @@ if __name__ == "__main__":
         logging.debug(f"Dataframe saved to {csv_filename}")
     else:
         logging.error(f"Invalid file format: {args.file_format}")
+
