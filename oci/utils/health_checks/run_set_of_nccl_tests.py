@@ -141,7 +141,7 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp, timeout=300):
 
         for p in tmp_proto:
             results_df = pd.DataFrame()
-            mpirun_command = f"ulimit -n 1000000 && mpirun"
+            mpirun_command = f"mpirun"
             if args.no_ucx == False:
                 mpirun_command += f" -mca pml ucx"
             mpirun_command += f" -mca coll ^hcoll"
@@ -178,7 +178,13 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp, timeout=300):
             if args.nccl_algo != "default":
                 mpirun_command += f" -x NCCL_ALGO={a}"
             #mpirun_command += f" -x NCCL_IB_HCA=mlx5"
-            mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_1,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_7,mlx5_8,mlx5_9,mlx5_10,mlx5_12,mlx5_13,mlx5_14,mlx5_15,mlx5_16,mlx5_17'"
+            if args.node_shape == "h200":
+                mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_9,mlx5_10,mlx5_11'"
+            elif args.node_shape == "h100":
+                mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_1,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_7,mlx5_8,mlx5_9,mlx5_10,mlx5_12,mlx5_13,mlx5_14,mlx5_15,mlx5_16,mlx5_17'"
+            else:
+                logging.error(f"Unknown node shape: {args.node_shape}")
+                sys.exit(1)
             mpirun_command += f" -x NCCL_NET_PLUGIN=none"
             mpirun_command += f" -x LD_LIBRARY_PATH"
             mpirun_command += f" {nccl_test} -b {args.begin_size} -e {args.end_size} -f 2 -g 1 -n {nccl_iters}"
@@ -575,6 +581,7 @@ if __name__ == "__main__":
     parser.add_argument('--good_hosts', type=str, help='List of good hosts')
     parser.add_argument('--nccl_qps_per_connection', type=int, required=False, help='NCCL IB QPS per connection')
     parser.add_argument('--output_dir', type=str, required=False, help='Output directory for the results')
+    parser.add_argument('--node_shape', type=str, required=False, default='h100', help='Node shape (h200 or h100)')
 
     # Parse the arguments
     args = parser.parse_args()
