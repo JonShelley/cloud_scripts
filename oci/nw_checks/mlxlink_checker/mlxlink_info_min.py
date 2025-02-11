@@ -6,7 +6,10 @@ import sys
 import subprocess
 import socket
 import re
-import datetime
+from datetime import datetime
+
+flap_duration_threshold = 86400
+flap_startup_wait_time = 1800
 
 data = dict()
 
@@ -63,10 +66,10 @@ for line in output.stdout.split('\n'):
             #print(f"Date and Time: {link_flap_time}, Interface: {mlx_interface}, Link Status: {link_status}")
             
             # Check to see if the link flap time is within the last x hours
-            #print(f"Link flap time: {link_flap_time}, Uptime: {uptime_date}, Diff: {(link_flap_time - uptime_date).total_seconds()}, Duration: {self.flap_duration_threshold}")
-            if (datetime.now() - link_flap_time).total_seconds() < self.flap_duration_threshold:
+            #print(f"Link flap time: {link_flap_time}, Uptime: {uptime_date}, Diff: {(link_flap_time - uptime_date).total_seconds()}, Duration: {flap_duration_threshold}")
+            if (datetime.now() - link_flap_time).total_seconds() < flap_duration_threshold:
                 # Check to see if the link_flap_time > than system uptime + 30 minutes
-                if (link_flap_time - uptime_date).total_seconds() > self.flap_startup_wait_time:
+                if (link_flap_time - uptime_date).total_seconds() > flap_startup_wait_time:
                     print(f"Link flap detected within the last hour: {link_flap_time}")
                     if mlx_interface not in link_dict:
                         link_dict[mlx_interface] = {"last_flap_time": link_flap_time, "flap_count": 1}
