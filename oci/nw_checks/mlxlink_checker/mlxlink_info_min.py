@@ -10,6 +10,7 @@ from datetime import datetime
 
 flap_duration_threshold = 86400
 flap_startup_wait_time = 1800
+uptime_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
 
 data = dict()
 
