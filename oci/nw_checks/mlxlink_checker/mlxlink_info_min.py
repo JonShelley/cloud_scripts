@@ -47,8 +47,8 @@ for line in output.stdout.split('\n'):
     if "mlx5_" in line and "link down" in line.lower():
         print(f"Link down event: {line}")
 
-        # Define the pattern
-        pattern = r"\[(\w{3} \w{3} {1,2}\d{1,2} \d{2}:\d{2}:\d{2} \d{4})\].*(rdma\d+): Link (\w+)"
+        # Define the pattern (Change eth to rdma if your interfaces are named rdma when you run rdma link)
+        pattern = r"\[(\w{3} \w{3} {1,2}\d{1,2} \d{2}:\d{2}:\d{2} \d{4})\].*(eth\d+): Link (\w+)"
 
         # Search for the date, rdma interface, and link status
         match = re.search(pattern, line)
