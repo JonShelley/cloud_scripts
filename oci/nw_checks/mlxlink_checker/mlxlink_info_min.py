@@ -10,7 +10,6 @@ from datetime import datetime
 
 flap_duration_threshold = 86400
 flap_startup_wait_time = 1800
-uptime_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
 
 data = dict()
 
@@ -22,6 +21,7 @@ data['hostname'] = hostname
 cmd = "uptime -s"
 output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 date_str = output.stdout.strip()
+uptime_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
 data['uptime'] = date_str
 
 # Get the rdma link information
@@ -33,7 +33,7 @@ if output.returncode != 0:
 
 # Define the pattern
 pattern = r"(mlx5_\d+)/\d+ state (\w+) physical_state (\w+) netdev (\w+)"
-    
+
 rdma_dict = {}
 for line in output.stdout.split('\n'):
     match = re.search(pattern, line)
@@ -45,7 +45,7 @@ data['rdma_link'] = rdma_dict
 
 # Get the mlx5 link information
 link_dict = {}
-cmd = "sudo dmesg -T| grep -E 'mlx5_'"
+cmd = "dmesg -T| grep -E 'mlx5_'"
 output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 for line in output.stdout.split('\n'):
     if "mlx5_" in line and "link down" in line.lower():
@@ -65,7 +65,7 @@ for line in output.stdout.split('\n'):
             link_status = match.group(3)
             mlx_interface = rdma_dict[mlx_interface]
             #print(f"Date and Time: {link_flap_time}, Interface: {mlx_interface}, Link Status: {link_status}")
-            
+
             # Check to see if the link flap time is within the last x hours
             #print(f"Link flap time: {link_flap_time}, Uptime: {uptime_date}, Diff: {(link_flap_time - uptime_date).total_seconds()}, Duration: {flap_duration_threshold}")
             if (datetime.now() - link_flap_time).total_seconds() < flap_duration_threshold:
@@ -76,18 +76,18 @@ for line in output.stdout.split('\n'):
                         link_dict[mlx_interface] = {"last_flap_time": link_flap_time, "flap_count": 1}
                     else:
                         link_dict[mlx_interface]["flap_count"] += 1
-                        link_dict[mlx_interface]["last_flap_time"] = link_flap_time
-        
+                        link_dict[mlx_interface]["last_flap_time"] = link_flap_time.strftime("%Y-%m-%d %H:%M:%S")
+
 
 data['link_flaps'] = link_dict
 
 # Get the system serial number
-cmd = "sudo dmidecode -s system-serial-number"
+cmd = "dmidecode -s system-serial-number"
 output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 data['serial_number'] = output.stdout.strip()
 
 # Get the mst status
-mst_cmd = "sudo mst status -v"
+mst_cmd = "mst status -v"
 mst_output = subprocess.run(mst_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
 
 # Parse in the mst status and store the PCI and RDMA information
@@ -105,15 +105,18 @@ data['mst_status'] = mst_dict
 for key in mst_dict:
     print(f"Key: {key}, Value: {mst_dict[key]}")
     mlx5_inter = mst_dict[key]
-    cmd = f"sudo mlxlink -m -e -c -d {mlx5_inter} --rx_fec_histogram --show_histogram --cable --dump --json"
-    
+    cmd = f"mlxlink -m -e -c -d {mlx5_inter} --rx_fec_histogram --show_histogram --json"
+
     output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     if output.returncode != 0:
         print(f"cmd: {cmd}, returncode: {output.returncode}")
         print(f"Error getting mlxlink info")
-    data[key] = json.loads(output.stdout)
+    try:
+        data[key] = json.loads(output.stdout)
+    except json.JSONDecodeError as e:
+        print(f"Error decoding json: {e}")
+        print(f"Output: {output.stdout}")
 
 # write data to a json file
-
 with open(f'mlxlink_info_min_{data["hostname"]}.json', 'w') as f:
     json.dump(data, f, indent=4)
