@@ -32,7 +32,7 @@ if output.returncode != 0:
     sys.exit(1)
 
 # Define the pattern
-pattern = r"(mlx5_\d+)/\d+ state (\w+) physical_state (\w+) netdev (\w+)"
+pattern = r"(mlx5_\d+)/\d+:? state (\w+) physical_state (\w+) netdev (\w+)"
 
 rdma_dict = {}
 for line in output.stdout.split('\n'):
@@ -73,7 +73,7 @@ for line in output.stdout.split('\n'):
                 if (link_flap_time - uptime_date).total_seconds() > flap_startup_wait_time:
                     print(f"Link flap detected within the last hour: {link_flap_time}")
                     if mlx_interface not in link_dict:
-                        link_dict[mlx_interface] = {"last_flap_time": link_flap_time, "flap_count": 1}
+                        link_dict[mlx_interface] = {"last_flap_time": link_flap_time.strftime("%Y-%m-%d %H:%M:%S"), "flap_count": 1}
                     else:
                         link_dict[mlx_interface]["flap_count"] += 1
                         link_dict[mlx_interface]["last_flap_time"] = link_flap_time.strftime("%Y-%m-%d %H:%M:%S")
