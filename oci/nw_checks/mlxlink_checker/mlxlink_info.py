@@ -54,6 +54,28 @@ class MlxlinkInfo:
         self.flap_startup_wait_time = 1800
         self.args = args
 
+        self.mst_mapping = {"H100": {
+        "d5:00.1": "mlx5_17",
+        "d5:00.0": "mlx5_16",
+        "bd:00.1": "mlx5_15",
+        "bd:00.0": "mlx5_14",
+        "a5:00.1": "mlx5_13",
+        "a5:00.0": "mlx5_12",
+        "9a:00.0": "mlx5_11",
+        "86:00.1": "mlx5_10",
+        "86:00.0": "mlx5_9",
+        "58:00.1": "mlx5_8",
+        "58:00.0": "mlx5_7",
+        "41:00.1": "mlx5_6",
+        "41:00.0": "mlx5_5",
+        "2a:00.1": "mlx5_4",
+        "2a:00.0": "mlx5_3",
+        "1f:00.0": "mlx5_2",
+        "0c:00.1": "mlx5_1",
+        "0c:00.0": "mlx5_0"
+        },
+        }
+
         if not args.read_json_files:
             self._collect_host_info()
         else:
@@ -76,7 +98,12 @@ class MlxlinkInfo:
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
             logging.error(f"Error getting rdma info")
-            return {}
+            cmd = "rdma link show"
+            output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            if output.returncode != 0:
+                logging.error(f"Error getting rdma info")
+                return {}
+            
         # Define the pattern
         pattern = r"(mlx5_\d+)/\d+ state (\w+) physical_state (\w+) netdev (\w+)"
 
@@ -92,8 +119,13 @@ class MlxlinkInfo:
         cmd = "chroot /host dmesg -T| grep -E 'mlx5_'"
         output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         if output.returncode != 0:
-            logging.error(f"Error getting dmesg info")
-            return {}
+            logging.error(f"Error getting dmesg info using chroot: {cmd}")
+            cmd = "dmesg -T| grep -E 'mlx5_'"
+            output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            if output.returncode != 0:
+                logging.error(f"Error getting dmesg info")
+                return {}
+            
         
         logging.debug(f"dmesg: {output.stdout}")
         # Check for link down events
@@ -191,9 +223,9 @@ class MlxlinkInfo:
                 logging.error(f"mlxlink command not found")
                 sys.exit(1)
             else:
-                cmd = f"chroot /host mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --cable --dump --json"
+                cmd = f"chroot /host mlxlink -d mlx5_{mlx5_inter} -m -e -c --rx_fec_histogram --show_histogram --json"
         else:
-            cmd = f"sudo mlxlink -m -e -c -d mlx5_{mlx5_inter} --rx_fec_histogram --show_histogram --cable --dump --json"
+            cmd = f"sudo mlxlink -d mlx5_{mlx5_inter} -m -e -c --rx_fec_histogram --show_histogram --json"
             mst_cmd = "mst status -v"
         
         logging.debug(f"Running command: {cmd}")
@@ -250,6 +282,11 @@ class MlxlinkInfo:
         return self.date_stamp
     
     def check_mlxlink_info(self, df):
+
+        # Print the column names
+        logging.debug("DF Columns: ")
+        logging.debug(df.columns)
+
         # Check to see if the FW is older than 28.39.2500
         df.loc[df['nic_fw_version'] < '28.39.2500', 'Status'] = 'Warning - FW < 28.39.2500'
 
@@ -480,6 +517,7 @@ class MlxlinkInfo:
         logging.debug("Reading JSON files")
         # Get the list of JSON files
         json_files = glob('*_mlx5_*.json')
+        
 
         all_df = pd.DataFrame()
 
@@ -490,10 +528,15 @@ class MlxlinkInfo:
                 data = json.load(infile)
 
             mlx5_inter = file.split('_')[2].split('.')[0]
-            hostname = file.split('_')[0]
+            if self.args.process_min_files:
+                hostname = file.split('_')[3]
+            else:
+                hostname = file.split('_')[0]
 
             data['mlx5_interface'] = f"{mlx5_inter}"
             data['ip_address'] = self.address
+
+            logging.debug(f"Hostname: {hostname}, mlx5_interface: {mlx5_inter}")
 
             # Add the hostname to the data
             self.host_info['hostname'] = hostname
@@ -527,8 +570,10 @@ class MlxlinkInfo:
 
         # Get the list of JSON files
         logging.debug(f"Files dir: {files_dir}")
-        logging.debug(f"{files_dir}/mlxlink_info_min_*.json")
-        json_files = glob(f'{files_dir}/mlxlink_info_min_*.json')
+        logging.debug(f"{files_dir}/*mlxlink_info_min*.json")
+        json_files = glob(f'{files_dir}/*mlxlink_info_min*.json')
+
+        logger.debug(f"JSON Files: {json_files}")
 
         all_df = pd.DataFrame()
 
@@ -544,20 +589,45 @@ class MlxlinkInfo:
 
             for key in data['mst_status']:
                 logging.debug(f"Key: {key}, Data: {data['mst_status'][key]}")
-                data['mlx5_interface'] = data['mst_status'][key]
+                std_mlx_interface = self.convert_mst_status_to_standard_mlx5(key)
+                logging.debug(f"Standard mlx5 interface: {std_mlx_interface}")
+
+                data['mlx5_interface'] = f"{std_mlx_interface}"
                 data['ip_address'] = None
-                mlx5_inter = data['mst_status'][key][5:]
+                if self.args.process_min_files:
+                    mlx5_inter = std_mlx_interface
+                else:
+                    mlx5_inter = data['mst_status'][key][5:]
 
                 # Add the hostname to the data
                 self.host_info['hostname'] = hostname
                 self.host_info['serial'] = data['serial_number']
                 data['hostname'] = self.host_info['hostname']
 
-                logging.debug(f"Data: {type(data)} - {data}")
-                data[key]['mlx5_interface'] = f"{mlx5_inter}"
-                data[key]['ip_address'] = self.address
+                #logging.debug(f"Data: {type(data)} - {data[key]}")
+                #logging.debug(f"Data: {type(data)} - {data}")
+                logging.debug(f"key: {key} - {mlx5_inter}")
+                try:
+                    data[key]['mlx5_interface'] = f"{mlx5_inter}"
+                    data[key]['ip_address'] = self.address
+                except:
+                    logging.error(f"Error processing data key: {key}")
+                    continue
 
                 df = self.process_mlxlink_info(data[key], mlx5_inter)
+                
+                # Check to see if the link has flapped
+                if data['mst_status'][key] in data['link_flaps']:
+                    link_key = data['mst_status'][key]
+                    logging.debug(f"Key: {link_key}, Data: {data['link_flaps'][link_key]}")
+                    # Map the link key to the correct interface by using the rdma link keys that map to the mst status keys
+                    logging.debug(f"Link flap detected: {link_key}")
+                    logging.debug(f"Flap count: {data['link_flaps'][link_key]['flap_count']}")
+                    logging.debug(f"Last flap time: {data['link_flaps'][link_key]['last_flap_time']}")
+                    flap_count = data['link_flaps'][link_key]['flap_count']
+                    last_flap_time = data['link_flaps'][link_key]['last_flap_time']
+                    df.loc[df['mlx5_'] == str(mlx5_inter), 'flap_count'] = flap_count
+                    df.loc[df['mlx5_'] == str(mlx5_inter), 'last_flap_time'] = last_flap_time
 
                 # Append the dataframe to the main dataframe
                 all_df = pd.concat([all_df, df], ignore_index=True)
@@ -605,6 +675,11 @@ class MlxlinkInfo:
                 os.makedirs(self.args.output_dir)
             os.chdir(self.args.output_dir)
         
+
+        # Remove any rows where mlx5_ is set to None
+        df = df[df['mlx5_'].notna()]
+        df = df[df['mlx5_'] != 'None']
+
         if self.args.file_format == 'csv':
             # Write the dataframe to a CSV file
             csv_filename = f'mlxlink_info_{self.args.address}_{self.get_date_stamp()}.csv'
@@ -617,6 +692,17 @@ class MlxlinkInfo:
             logging.debug(f"Dataframe saved to {json_filename}")
 
         return df
+    
+    def convert_mst_status_to_standard_mlx5(self, interface):
+        # Convert the mst status to standard mlx5 interface
+        try:
+            mlx5_interface = self.mst_mapping["H100"][interface]
+        except:
+            print(f"Error converting mst status to standard mlx5 interface: {interface}")
+            mlx5_interface = None
+
+        logging.debug(f"Interface: {interface}, mlx5_interface: {mlx5_interface}")
+        return mlx5_interface
 
 if __name__ == "__main__":
     # Create the parser
@@ -641,6 +727,7 @@ if __name__ == "__main__":
     parser.add_argument('--flap_duration_threshold', type=int, help='specify the flap duration threshold in seconds')
     parser.add_argument('--mlx_interfaces', type=list_of_strings, default="0,1,3,4,5,6,7,8,9,10,12,13,14,15,16,17", help='specify the mlx interfaces to check %(default)s')
     parser.add_argument('--process_min_files', type=str, help='specify the the directory where the mlxlink_info_min files are located: "CWD" or "path to the results dir"')
+    parser.add_argument('--rdma_prefix', type=str, default='rdma', help='specify the rdma prefix (default: %(default)s)')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -695,6 +782,10 @@ if __name__ == "__main__":
         if not os.path.exists(args.output_dir):
             os.makedirs(args.output_dir)
         os.chdir(args.output_dir)
+    
+    # Remove any rows where mlx5_ is set to None
+    df = df[df['mlx5_'].notna()]
+    df = df[df['mlx5_'] != 'None']
 
     if args.file_format == 'json':
         # Write the dataframe to a JSON file
