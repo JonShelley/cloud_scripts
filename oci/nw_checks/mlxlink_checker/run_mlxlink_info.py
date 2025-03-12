@@ -148,14 +148,18 @@ class run_mlxlink_info:
         # list the current directory
         logging.debug(f'ls: {os.listdir()}')
 
-        files = glob.glob('mlxlink_info_*.json')
+        files = glob.glob('*mlxlink_info*.json')
+        logging.debug(f'Files: {len(files)}')
+
 
         # Create an empty DataFrame to store results
         df = pd.DataFrame()
 
         # Read in the files
         for file in files:
+            logging.debug(f'Reading in {file}')
             new_df = pd.read_json(file)
+            logging.debug(f'new_df: {new_df}')
             df = pd.concat([df, new_df])
         
         # Print out results that failed
@@ -238,6 +242,7 @@ if __name__ == '__main__':
     parser.add_argument('-p', '--port', type=int, default=22, help='specify the ssh port number (default: %(default)s)')
     parser.add_argument('-w', '--warning', action='store_true', help='enable warning messages')
     parser.add_argument('--flap_duration_threshold', type=int, default=12, help='specify the link flap duration threshold in hours(default: %(default)s)')
+    parser.add_argument('--process-only', type=str, help='specify the the directory where the results are located: "CWD" or "path to the results dir"')
 
     # Execute the parse_args() method
     args = parser.parse_args()
@@ -245,6 +250,12 @@ if __name__ == '__main__':
     hostfile = args.hostfile
 
     rmi = run_mlxlink_info(args)
+
+    if args.process_only:
+        if not args.process_only == 'CWD':
+            os.chdir(args.process_only)
+        rmi.process_results()
+        exit(0)
 
     # Read the hostfile
     with open(hostfile, 'r') as f:
