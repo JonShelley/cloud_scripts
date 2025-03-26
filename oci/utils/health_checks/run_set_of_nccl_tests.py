@@ -100,7 +100,7 @@ def parse_nccl_output(output):
 
     return tmp_data
 
-def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp, timeout=300):
+def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp):
     logging.debug(f"Running on {HPJ} using mpirun for ({hostfile})")
     NP = HPJ * 8
 
@@ -209,7 +209,7 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp, timeout=300):
                     return proc1
                 else:
                     with open(outfile_name, 'w') as f:
-                        output = subprocess.run(mpirun_command, shell=True, stderr=f, stdout=f, universal_newlines=True, timeout=timeout)
+                        output = subprocess.run(mpirun_command, shell=True, stderr=f, stdout=f, universal_newlines=True, timeout=args.timeout)
                     
                 time_taken = datetime.now() - stime
                 time_taken = time_taken.total_seconds()
@@ -582,6 +582,8 @@ if __name__ == "__main__":
     parser.add_argument('--nccl_qps_per_connection', type=int, required=False, help='NCCL IB QPS per connection')
     parser.add_argument('--output_dir', type=str, required=False, help='Output directory for the results')
     parser.add_argument('--node_shape', type=str, required=False, default='h100', help='Node shape (h200 or h100)')
+    parser.add_argument('--net_plugin', type=str, required=False, default='none', help='path to the NCCL net plugin to use')
+    parser.add_argument('--timeout', type=int, required=False, default=300, help='Timeout for the command in seconds')
 
     # Parse the arguments
     args = parser.parse_args()
