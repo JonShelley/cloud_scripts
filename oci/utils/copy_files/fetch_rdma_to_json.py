@@ -34,14 +34,31 @@ def get_rdma_ips(node, user=None, ssh_key=None):
 
 def parse_pattern(pattern):
     """
-    Parse a pattern like prefix-[n1,n2,...] into ['prefix-n1', 'prefix-n2', ...].
+    Parse a pattern like prefix-[n1,n2,...] or prefix-[start-end]
+    into ['prefix-n1', 'prefix-n2', ...] or ['prefix-start', ..., 'prefix-end'].
     """
     m = re.fullmatch(r'(.+)-\[(.+)\]', pattern.strip())
     if not m:
-        raise ValueError(f"Invalid pattern format: {pattern!r}. Expected something like gpu-[1,2,3]")
-    prefix, nums = m.group(1), m.group(2)
-    parts = [n.strip() for n in nums.split(',') if n.strip()]
+        raise ValueError(f"Invalid pattern format: {pattern!r}. "
+                         "Expected something like gpu-[1,2,3] or gpu-[5-7]")
+    prefix, body = m.group(1), m.group(2)
+    parts = []
+    for token in body.split(','):
+        token = token.strip()
+        if not token:
+            continue
+        # handle numeric range "start-end"
+        rng = re.fullmatch(r'(\d+)\s*-\s*(\d+)', token)
+        if rng:
+            start, end = map(int, rng.groups())
+            if start > end:
+                raise ValueError(f"Invalid range {token!r}: start > end")
+            parts.extend(str(i) for i in range(start, end + 1))
+        else:
+            parts.append(token)
     return [f"{prefix}-{p}" for p in parts]
+
+
 
 def main():
     parser = argparse.ArgumentParser(
