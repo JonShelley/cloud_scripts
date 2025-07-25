@@ -105,7 +105,7 @@ data['mst_status'] = mst_dict
 for key in mst_dict:
     print(f"Key: {key}, Value: {mst_dict[key]}")
     mlx5_inter = mst_dict[key]
-    cmd = f"mlxlink -m -e -c -d {mlx5_inter} --rx_fec_histogram --show_histogram --json"
+    cmd = f"mlxlink -d {mlx5_inter} -m -e -c --rx_fec_histogram --show_histogram --json"
 
     output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     if output.returncode != 0:
