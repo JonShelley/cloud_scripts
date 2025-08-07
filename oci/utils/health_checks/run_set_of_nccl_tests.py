@@ -47,6 +47,8 @@ def get_nccl_run_type(args):
     # get run type name
     if "alltoall" in args.nccl_test:
         run_type = "A2A"  # All to All
+    elif "alltoallv" in args.nccl_test:
+        run_type = "A2AV"
     elif "all_reduce" in args.nccl_test:
         run_type = "AR"
     elif "all_gather" in args.nccl_test:
@@ -158,7 +160,7 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp):
             mpirun_command += f" -x UCX_NET_DEVICES=eth0"
             mpirun_command += f" -x HCOLL_ENABLE_MCAST_ALL=0"
             mpirun_command += f" -x coll_hcoll_enable=0"
-            mpirun_command += f" -x NCCL_DEBUG=warn"
+#            mpirun_command += f" -x NCCL_DEBUG=warn"
             mpirun_command += f" -x NCCL_CUMEM_ENABLE=0"
             mpirun_command += f" -x NCCL_IB_TIMEOUT=22"
             mpirun_command += f" -x NCCL_IB_SL=0"
@@ -180,6 +182,9 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp):
             #mpirun_command += f" -x NCCL_IB_HCA=mlx5"
             if args.node_shape == "h200":
                 mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_9,mlx5_10,mlx5_11'"
+            elif args.node_shape == "mi300x":
+                mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_2,mlx5_3,mlx5_4,mlx5_5,mlx5_7,mlx5_8,mlx5_9'"
+                mpirun_command += f" -x NCCL_PXN_DISABLE=0"
             elif args.node_shape == "h100":
                 mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_1,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_7,mlx5_8,mlx5_9,mlx5_10,mlx5_12,mlx5_13,mlx5_14,mlx5_15,mlx5_16,mlx5_17'"
             else:
@@ -239,17 +244,31 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp):
 
             # Check to see if Avg BW is above the minimum threshold
             if 'Avg BW' in row_data:
-                
-                avg_bw = {"A2A": {"1": 220.0, "2": 42.0, "4": 42, "8": 37.5, "16": 34, "32": 32, "64": 27, "96": 23, "128": 20, "256": 18, "512": 18}, 
-                          "AR": {"1": 295.0, "2": 252, "4": 175, "8": 175, "16": 165, "32": 165, "64": 160, "96": 150, "128": 120, "256": 105, "512": 100},
-                          "AG": {},
-                          "BC": {},
-                          "GA": {},
-                          "RS": {},
-                          "RE": {},
-                          "SC": {},
-                          "SR": {},
-                          "HC": {}}
+                avg_bw = {}
+                if args.node_shape in ['h100','h200','b200']: 
+                    avg_bw = {"A2A": {"1": 220.0, "2": 42.0, "4": 42, "8": 37.5, "16": 34, "32": 32, "64": 27, "96": 23, "128": 20, "256": 18, "512": 18}, 
+                              "AR": {"1": 295.0, "2": 252, "4": 175, "8": 175, "16": 165, "32": 165, "64": 160, "96": 150, "128": 120, "256": 105, "512": 100},
+                              "AG": {},
+                              "BC": {},
+                              "GA": {},
+                              "RS": {},
+                              "RE": {},
+                              "SC": {},
+                              "SR": {},
+                              "HC": {}}
+
+                if args.node_shape in ['mi300x']: 
+                    avg_bw = {"A2A": {"1": 210.0, "2": 50.0, "4": 37, "8": 29, "16": 24, "32": 20, "64": 15, "96": 12, "128": 15, "256": 13, "512": 12}, 
+                              "A2AV": {},
+                              "AR": {"1": 230.0, "2": 190, "4": 171, "8": 155, "16": 145, "32": 135, "64": 120, "96": 115, "128": 110, "256": 100, "512": 100},
+                              "AG": {},
+                              "BC": {},
+                              "GA": {},
+                              "RS": {},
+                              "RE": {},
+                              "SC": {},
+                              "SR": {},
+                              "HC": {}}
 
                 if run_type in avg_bw:
                     if str(HPJ) in avg_bw[run_type]:
@@ -584,6 +603,7 @@ if __name__ == "__main__":
     parser.add_argument('--node_shape', type=str, required=False, default='h100', help='Node shape (h200 or h100)')
     parser.add_argument('--net_plugin', type=str, required=False, default='none', help='path to the NCCL net plugin to use')
     parser.add_argument('--timeout', type=int, required=False, default=300, help='Timeout for the command in seconds')
+    parser.add_argument('--rocm', action='store_true', help='Use ROCm for the NCCL tests')
 
     # Parse the arguments
     args = parser.parse_args()
@@ -599,7 +619,7 @@ if __name__ == "__main__":
 
     # Set up logging
     if args.quiet:
-        logging.basicConfig(filename=f'/shared/jshelley/nccl_tests_logfile_{date_stamp}.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+        logging.basicConfig(filename=f'/home/ubuntu/jshelley/nccl_tests/nccl_tests_logfile_{date_stamp}.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
     else:
         if args.debug:
             logging.basicConfig(level=logging.DEBUG)
@@ -622,3 +642,4 @@ if __name__ == "__main__":
         execute_noisy_neighbor_runs(args, dargs, date_stamp)
     else:
         execute_command_in_sets_of_hosts_with_mpirun(args, dargs, date_stamp)
+
