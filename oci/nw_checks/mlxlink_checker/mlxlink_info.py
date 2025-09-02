@@ -305,6 +305,16 @@ class MlxlinkInfo:
         # Check to see if the link state is up
         df.loc[df['LinkState'] != 'Active', 'Status'] = 'Failed - LinkState != Active'
 
+        # Check the FEC bins. If FEC Bin7 or higher is greater than 0, then set the status to Failed
+        # FEC Bin0-6 are normal, FEC Bin7-15 are errors
+        # FEC Bin values need to be converted to integers
+        for i in range(0, 16):
+            df[f'FecBin{i}'] = df[f'FecBin{i}'].astype(int)
+
+        for i in range(7, 16):
+            if df[f'FecBin{i}'].gt(0).any():
+                df.loc[df[f'FecBin{i}'] > 100, 'Status'] = f'Failed - FEC Bin{i} > 0'
+
         return df    
 
     def gather_mlxlink_info(self):
@@ -374,6 +384,11 @@ class MlxlinkInfo:
                 LinkState = data['result']['output']['Operational Info']['State']
                 if 'result' in data and 'Histogram of FEC Errors' in data['result']['output']:
                     FecBin0 = data['result']['output']['Histogram of FEC Errors']['Bin 0']['values'][1]
+                    FecBin1 = data['result']['output']['Histogram of FEC Errors']['Bin 1']['values'][1]
+                    FecBin2 = data['result']['output']['Histogram of FEC Errors']['Bin 2']['values'][1]
+                    FecBin3 = data['result']['output']['Histogram of FEC Errors']['Bin 3']['values'][1]
+                    FecBin4 = data['result']['output']['Histogram of FEC Errors']['Bin 4']['values'][1]
+                    FecBin5 = data['result']['output']['Histogram of FEC Errors']['Bin 5']['values'][1]
                     FecBin6 = data['result']['output']['Histogram of FEC Errors']['Bin 6']['values'][1]
                     FecBin7 = data['result']['output']['Histogram of FEC Errors']['Bin 7']['values'][1]
                     FecBin8 = data['result']['output']['Histogram of FEC Errors']['Bin 8']['values'][1]
@@ -499,6 +514,23 @@ class MlxlinkInfo:
                                     'flap_count': 0,
                                     'last_flap_time': None,
                                     'Recommended': Recommended,
+                                    # Return of list of all of the Fec bins
+                                    'FecBin0': FecBin0,
+                                    'FecBin1': FecBin1,
+                                    'FecBin2': FecBin2,
+                                    'FecBin3': FecBin3,
+                                    'FecBin4': FecBin4,
+                                    'FecBin5': FecBin5,
+                                    'FecBin6': FecBin6,
+                                    'FecBin7': FecBin7,
+                                    'FecBin8': FecBin8,
+                                    'FecBin9': FecBin9,
+                                    'FecBin10': FecBin10,
+                                    'FecBin11': FecBin11,
+                                    'FecBin12': FecBin12,
+                                    'FecBin13': FecBin13,
+                                    'FecBin14': FecBin14,
+                                    'FecBin15': FecBin15,
                                     'Status': 'Passed'
                                     })
 
@@ -580,9 +612,13 @@ class MlxlinkInfo:
         # Loop through the JSON files
         for file in json_files:
             logging.debug(f"File: {file}")
-            # Read the JSON file
-            with open(file, 'r') as infile:
-                data = json.load(infile)
+            # Try to read the JSON file. If it fails, skip the file and print an error message
+            try:
+                with open(file, 'r') as infile:
+                    data = json.load(infile)
+            except Exception as e:
+                logging.error(f"Error reading {file}: {e}")
+                continue
 
             hostname = data['hostname']
             logging.debug(f"Hostname: {hostname}")
@@ -653,6 +689,11 @@ class MlxlinkInfo:
             by=["hostname", "mlx5_"],
             key=lambda x: np.argsort(index_natsorted(df["hostname"]))
         )
+
+        # If args.full is not set, then only display a subset of the columns
+        if not self.args.full:
+            # Remove the FecBin columns
+            df = df.drop(columns=['FecBin0', 'FecBin1', 'FecBin2', 'FecBin3', 'FecBin4', 'FecBin5', 'FecBin6', 'FecBin7', 'FecBin8', 'FecBin9', 'FecBin10', 'FecBin11', 'FecBin12', 'FecBin13', 'FecBin14', 'FecBin15'])
 
         # Tabulate the df
         logging.debug(f"self.args.error: {self.args.error}")
@@ -728,6 +769,7 @@ if __name__ == "__main__":
     parser.add_argument('--mlx_interfaces', type=list_of_strings, default="0,1,3,4,5,6,7,8,9,10,12,13,14,15,16,17", help='specify the mlx interfaces to check %(default)s')
     parser.add_argument('--process_min_files', type=str, help='specify the the directory where the mlxlink_info_min files are located: "CWD" or "path to the results dir"')
     parser.add_argument('--rdma_prefix', type=str, default='rdma', help='specify the rdma prefix (default: %(default)s)')
+    parser.add_argument('-f', '--full', action='store_true', help='Enable full output')
 
     # Parse the arguments
     args = parser.parse_args()
