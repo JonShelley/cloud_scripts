@@ -117,6 +117,30 @@ for key in mst_dict:
         print(f"Error decoding json: {e}")
         print(f"Output: {output.stdout}")
 
+# Get the ethtool -S information for each rdma interface
+for key in rdma_dict:
+    print(f"Key: {key}, Value: {rdma_dict[key]}")
+    rdma_inter = key
+    cmd = f"ethtool -S {rdma_inter}"
+
+    output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    if output.returncode != 0:
+        print(f"cmd: {cmd}, returncode: {output.returncode}")
+        print(f"Error getting ethtool info")
+    ethtool_dict = {}
+    for line in output.stdout.split('\n'):
+        if ':' in line:
+            parts = line.split(':')
+            # Exclude keys that contain tx[0-9]+_ or rx[0-9]+_ or ch[0-9]+_ prefixes or the value equals to zero
+            if not re.match(r'^(tx[0-9]+_|rx[0-9]+_|ch[0-9]+_)', parts[0].strip()):
+                ethtool_dict[parts[0].strip()] = parts[1].strip()
+
+
+    data[rdma_inter] = ethtool_dict
+
+# define a variable with the current date and time
+current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
 # write data to a json file
-with open(f'mlxlink_info_min_{data["hostname"]}.json', 'w') as f:
+with open(f'mlxlink_info_min_{data["hostname"]}_{current_time}.json', 'w') as f:
     json.dump(data, f, indent=4)
