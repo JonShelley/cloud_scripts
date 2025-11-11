@@ -55,25 +55,65 @@ class MlxlinkInfo:
         self.args = args
 
         self.mst_mapping = {"H100": {
-        "d5:00.1": "mlx5_17",
-        "d5:00.0": "mlx5_16",
-        "bd:00.1": "mlx5_15",
-        "bd:00.0": "mlx5_14",
-        "a5:00.1": "mlx5_13",
-        "a5:00.0": "mlx5_12",
-        "9a:00.0": "mlx5_11",
-        "86:00.1": "mlx5_10",
-        "86:00.0": "mlx5_9",
-        "58:00.1": "mlx5_8",
-        "58:00.0": "mlx5_7",
-        "41:00.1": "mlx5_6",
-        "41:00.0": "mlx5_5",
-        "2a:00.1": "mlx5_4",
-        "2a:00.0": "mlx5_3",
-        "1f:00.0": "mlx5_2",
-        "0c:00.1": "mlx5_1",
-        "0c:00.0": "mlx5_0"
-        },
+                "d5:00.1": "mlx5_17",
+                "d5:00.0": "mlx5_16",
+                "bd:00.1": "mlx5_15",
+                "bd:00.0": "mlx5_14",
+                "a5:00.1": "mlx5_13",
+                "a5:00.0": "mlx5_12",
+                "9a:00.0": "mlx5_11",
+                "86:00.1": "mlx5_10",
+                "86:00.0": "mlx5_9",
+                "58:00.1": "mlx5_8",
+                "58:00.0": "mlx5_7",
+                "41:00.1": "mlx5_6",
+                "41:00.0": "mlx5_5",
+                "2a:00.1": "mlx5_4",
+                "2a:00.0": "mlx5_3",
+                "1f:00.0": "mlx5_2",
+                "0c:00.1": "mlx5_1",
+                "0c:00.0": "mlx5_0"
+            },
+            "A100": {
+                "c3:00.0": "mlx5_9",
+                "0c:00.0": "mlx5_5",
+                "d1:00.1": "mlx5_12",
+                "16:00.1": "mlx5_8",
+                "89:00.0": "mlx5_14",
+                "4b:00.0": "mlx5_3",
+                "c3:00.1": "mlx5_10",
+                "0c:00.1": "mlx5_6",
+                "47:00.0": "mlx5_1",
+                "93:00.0": "mlx5_16",
+                "d1:00.0": "mlx5_11",
+                "89:00.1": "mlx5_15",
+                "4b:00.1": "mlx5_4",
+                "aa:00.0": "mlx5_13",
+                "16:00.0": "mlx5_7",
+                "6b:00.0": "mlx5_0",
+                "47:00.1": "mlx5_2",
+                "93:00.1": "mlx5_17"
+            },
+            "GB200": {
+                "0000:03:00.0": "mlx5_0",
+                "0002:03:00.0": "mlx5_1",
+                "0010:03:00.0": "mlx5_3",
+                "0012:03:00.0": "mlx5_4",
+                "0006:09:00.0": "mlx5_2",
+                "0016:0b:00.0": "mlx5_5"
+            },
+            "B200": {
+                "0c:00.0": "mlx5_0",
+                "a5:00.0": "mlx5_9",
+                "41:00.0": "mlx5_4",
+                "bd:00.0": "mlx5_10",
+                "58:00.0": "mlx5_5",
+                "86:00.0": "mlx5_6",
+                "9a:00.0": "mlx5_7",
+                "1f:00.0": "mlx5_1",
+                "2a:00.0": "mlx5_3",
+                "d5:00.0": "mlx5_11"
+            }
         }
 
         if not args.read_json_files:
@@ -371,9 +411,12 @@ class MlxlinkInfo:
             CMD_Status = data['status']['code']
             CMD_Status_msg = data['status']['message']
             logging.debug(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
-            if CMD_Status == 0:
+            if CMD_Status == 0 or CMD_Status == 1 and CMD_Status_msg.find("FEC Histogram is not supported for the current device") != -1 :
                 logging.debug(f"{mlx5_interface} - CMD_Status: {CMD_Status}, CMD_Status_msg: {CMD_Status_msg}")
-                RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
+                try:
+                    RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
+                except:
+                    RawPhysicalErrorsPerLane = [-1,-1,-1,-1]
                 RawPhysicalBER = data['result']['output']['Physical Counters and BER Info']['Raw Physical BER']
                 EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
                 EffectivePhysicalBER = data['result']['output']['Physical Counters and BER Info']['Effective Physical BER']
@@ -382,40 +425,25 @@ class MlxlinkInfo:
                 Recommended = data['result']['output']['Troubleshooting Info']['Recommendation']
                 NicFWVersion = data['result']['output']['Tool Information']['Firmware Version']
                 LinkState = data['result']['output']['Operational Info']['State']
+                # Initialize FEC bins 0–15
+                fec_bins = {}
                 if 'result' in data and 'Histogram of FEC Errors' in data['result']['output']:
-                    FecBin0 = data['result']['output']['Histogram of FEC Errors']['Bin 0']['values'][1]
-                    FecBin1 = data['result']['output']['Histogram of FEC Errors']['Bin 1']['values'][1]
-                    FecBin2 = data['result']['output']['Histogram of FEC Errors']['Bin 2']['values'][1]
-                    FecBin3 = data['result']['output']['Histogram of FEC Errors']['Bin 3']['values'][1]
-                    FecBin4 = data['result']['output']['Histogram of FEC Errors']['Bin 4']['values'][1]
-                    FecBin5 = data['result']['output']['Histogram of FEC Errors']['Bin 5']['values'][1]
-                    FecBin6 = data['result']['output']['Histogram of FEC Errors']['Bin 6']['values'][1]
-                    FecBin7 = data['result']['output']['Histogram of FEC Errors']['Bin 7']['values'][1]
-                    FecBin8 = data['result']['output']['Histogram of FEC Errors']['Bin 8']['values'][1]
-                    FecBin9 = data['result']['output']['Histogram of FEC Errors']['Bin 9']['values'][1]
-                    FecBin10 = data['result']['output']['Histogram of FEC Errors']['Bin 10']['values'][1]
-                    FecBin11 = data['result']['output']['Histogram of FEC Errors']['Bin 11']['values'][1]
-                    FecBin12 = data['result']['output']['Histogram of FEC Errors']['Bin 12']['values'][1]
-                    FecBin13 = data['result']['output']['Histogram of FEC Errors']['Bin 13']['values'][1]
-                    FecBin14 = data['result']['output']['Histogram of FEC Errors']['Bin 14']['values'][1]
-                    FecBin15 = data['result']['output']['Histogram of FEC Errors']['Bin 15']['values'][1]
+                    fec_data = data['result']['output']['Histogram of FEC Errors']
+                    for i in range(16):
+                        key = f"Bin {i}"
+                        try:
+                            fec_bins[i] = fec_data[key]['values'][1]
+                        except Exception:
+                            fec_bins[i] = "-1"
+                            logging.debug(f"Missing FEC Bin{i} in {data.get('mlx5_interface', 'unknown')} — set to -1")
                 else:
-                    FecBin0 = "-1"
-                    FecBin1 = "-1"
-                    FecBin2 = "-1"
-                    FecBin3 = "-1"
-                    FecBin4 = "-1"
-                    FecBin5 = "-1"
-                    FecBin6 = "-1"
-                    FecBin7 = "-1"
-                    FecBin8 = "-1"
-                    FecBin9 = "-1"
-                    FecBin10 = "-1"
-                    FecBin11 = "-1"
-                    FecBin12 = "-1"
-                    FecBin13 = "-1"
-                    FecBin14 = "-1"
-                    FecBin15 = "-1"
+                    for i in range(16):
+                        fec_bins[i] = "-1"
+                        logging.debug(f"No Histogram of FEC Errors present — FEC Bin{i} set to -1")
+
+                # Unpack fec_bins into named variables
+                for i in range(16):
+                    globals()[f"FecBin{i}"] = fec_bins[i]
             else:
                 RawPhysicalErrorsPerLane = [-1,-1,-1,-1]
                 EffectivePhysicalErrors = '-1'
@@ -426,6 +454,8 @@ class MlxlinkInfo:
                 VendorSerialNumber = 'Unknown'
                 NicFWVersion = 'Unknown'
                 if 'result' in data:
+                    logging.debug(f"Results: {data['results']}")
+                    
                     RawPhysicalBER = data['result']['output']['Physical Counters and BER Info']['Raw Physical BER']
                     RawPhysicalErrorsPerLane = data['result']['output']['Physical Counters and BER Info']['Raw Physical Errors Per Lane']['values']
                     EffectivePhysicalErrors = data['result']['output']['Physical Counters and BER Info']['Effective Physical Errors']
@@ -434,40 +464,25 @@ class MlxlinkInfo:
                     VendorSerialNumber = data['result']['output']['Module Info']['Vendor Serial Number']
                     Recommended = data['result']['output']['Troubleshooting Info']['Recommendation']
                     LinkState = data['result']['output']['Operational Info']['State']
+                # Initialize FEC bins 0–15
+                fec_bins = {}
                 if 'result' in data and 'Histogram of FEC Errors' in data['result']['output']:
-                    FecBin0 = data['result']['output']['Histogram of FEC Errors']['Bin 0']['values'][1]
-                    FecBin1 = data['result']['output']['Histogram of FEC Errors']['Bin 1']['values'][1]
-                    FecBin2 = data['result']['output']['Histogram of FEC Errors']['Bin 2']['values'][1]
-                    FecBin3 = data['result']['output']['Histogram of FEC Errors']['Bin 3']['values'][1]
-                    FecBin4 = data['result']['output']['Histogram of FEC Errors']['Bin 4']['values'][1]
-                    FecBin5 = data['result']['output']['Histogram of FEC Errors']['Bin 5']['values'][1]
-                    FecBin6 = data['result']['output']['Histogram of FEC Errors']['Bin 6']['values'][1]
-                    FecBin7 = data['result']['output']['Histogram of FEC Errors']['Bin 7']['values'][1]
-                    FecBin8 = data['result']['output']['Histogram of FEC Errors']['Bin 8']['values'][1]
-                    FecBin9 = data['result']['output']['Histogram of FEC Errors']['Bin 9']['values'][1]
-                    FecBin10 = data['result']['output']['Histogram of FEC Errors']['Bin 10']['values'][1]
-                    FecBin11 = data['result']['output']['Histogram of FEC Errors']['Bin 11']['values'][1]
-                    FecBin12 = data['result']['output']['Histogram of FEC Errors']['Bin 12']['values'][1]
-                    FecBin13 = data['result']['output']['Histogram of FEC Errors']['Bin 13']['values'][1]
-                    FecBin14 = data['result']['output']['Histogram of FEC Errors']['Bin 14']['values'][1]
-                    FecBin15 = data['result']['output']['Histogram of FEC Errors']['Bin 15']['values'][1]
+                    fec_data = data['result']['output']['Histogram of FEC Errors']
+                    for i in range(16):
+                        key = f"Bin {i}"
+                        try:
+                            fec_bins[i] = fec_data[key]['values'][1]
+                        except Exception:
+                            fec_bins[i] = "-1"
+                            logging.debug(f"Missing FEC Bin{i} in {data.get('mlx5_interface', 'unknown')} — set to -1")
                 else:
-                    FecBin0 = '-1'
-                    FecBin1 = '-1'
-                    FecBin2 = '-1'
-                    FecBin3 = '-1'
-                    FecBin4 = '-1'
-                    FecBin5 = '-1'
-                    FecBin6 = '-1'
-                    FecBin7 = '-1'
-                    FecBin8 = '-1'
-                    FecBin9 = '-1'
-                    FecBin10 = '-1'
-                    FecBin11 = '-1'
-                    FecBin12 = '-1'
-                    FecBin13 = '-1'
-                    FecBin14 = '-1'
-                    FecBin15 = '-1'
+                    for i in range(16):
+                        fec_bins[i] = "-1"
+                        logging.debug(f"No Histogram of FEC Errors present — FEC Bin{i} set to -1")
+
+                # Unpack fec_bins into named variables
+                for i in range(16):
+                    globals()[f"FecBin{i}"] = fec_bins[i]
 
             # Set the dataframe vars
             mlx5_interface = data['mlx5_interface']
@@ -604,6 +619,7 @@ class MlxlinkInfo:
         logging.debug(f"Files dir: {files_dir}")
         logging.debug(f"{files_dir}/*mlxlink_info_min*.json")
         json_files = glob(f'{files_dir}/*mlxlink_info_min*.json')
+        json_files += glob(f'{files_dir}/*test_min.json')
 
         logger.debug(f"JSON Files: {json_files}")
 
@@ -695,6 +711,10 @@ class MlxlinkInfo:
             # Remove the FecBin columns
             df = df.drop(columns=['FecBin0', 'FecBin1', 'FecBin2', 'FecBin3', 'FecBin4', 'FecBin5', 'FecBin6', 'FecBin7', 'FecBin8', 'FecBin9', 'FecBin10', 'FecBin11', 'FecBin12', 'FecBin13', 'FecBin14', 'FecBin15'])
 
+        # Remove any rows where mlx5_ is set to None
+        df = df[df['mlx5_'].notna()]
+        df = df[df['mlx5_'] != 'None']
+
         # Tabulate the df
         logging.debug(f"self.args.error: {self.args.error}")
         if self.args.error:
@@ -715,11 +735,6 @@ class MlxlinkInfo:
             if not os.path.exists(self.args.output_dir):
                 os.makedirs(self.args.output_dir)
             os.chdir(self.args.output_dir)
-        
-
-        # Remove any rows where mlx5_ is set to None
-        df = df[df['mlx5_'].notna()]
-        df = df[df['mlx5_'] != 'None']
 
         if self.args.file_format == 'csv':
             # Write the dataframe to a CSV file
@@ -737,7 +752,7 @@ class MlxlinkInfo:
     def convert_mst_status_to_standard_mlx5(self, interface):
         # Convert the mst status to standard mlx5 interface
         try:
-            mlx5_interface = self.mst_mapping["H100"][interface]
+            mlx5_interface = self.mst_mapping[self.args.shape][interface]
         except:
             print(f"Error converting mst status to standard mlx5 interface: {interface}")
             mlx5_interface = None
@@ -754,7 +769,7 @@ if __name__ == "__main__":
         return arg.split(',')
     
     # Add the logging level argument
-    parser.add_argument('-l', '--log', default='critical', help='Set the logging level (default: %(default)s)')
+    parser.add_argument('-l', '--log', default='INFO', help='Set the logging level (default: %(default)s)')
     parser.add_argument('-e', '--error', action='store_true', help='Set the error reporting')
     parser.add_argument('-w', '--warning', action='store_true', help='Add warnings to the error reporting')
     parser.add_argument('--date_stamp', type=str, help='The data file to use')
@@ -769,6 +784,7 @@ if __name__ == "__main__":
     parser.add_argument('--mlx_interfaces', type=list_of_strings, default="0,1,3,4,5,6,7,8,9,10,12,13,14,15,16,17", help='specify the mlx interfaces to check %(default)s')
     parser.add_argument('--process_min_files', type=str, help='specify the the directory where the mlxlink_info_min files are located: "CWD" or "path to the results dir"')
     parser.add_argument('--rdma_prefix', type=str, default='rdma', help='specify the rdma prefix (default: %(default)s)')
+    parser.add_argument('-s', '--shape', type=str, default='H100', help='specify the compute shape. (A100, H100) (default: %(default)s)')
     parser.add_argument('-f', '--full', action='store_true', help='Enable full output')
 
     # Parse the arguments
@@ -806,6 +822,10 @@ if __name__ == "__main__":
     # Set the logging level to INFO
     logging.getLogger().setLevel('INFO')
 
+    # Remove any rows where mlx5_ is set to None
+    df = df[df['mlx5_'].notna()]
+    df = df[df['mlx5_'] != 'None']
+
     # Tabulate the df
     if args.error:
         # Filter the dataframe
@@ -825,10 +845,6 @@ if __name__ == "__main__":
             os.makedirs(args.output_dir)
         os.chdir(args.output_dir)
     
-    # Remove any rows where mlx5_ is set to None
-    df = df[df['mlx5_'].notna()]
-    df = df[df['mlx5_'] != 'None']
-
     if args.file_format == 'json':
         # Write the dataframe to a JSON file
         json_filename = f'mlxlink_info_{args.address}_{mlxlink_info.get_date_stamp()}.json'
