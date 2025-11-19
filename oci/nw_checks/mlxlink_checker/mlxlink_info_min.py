@@ -12,31 +12,53 @@ flap_duration_threshold = 86400
 flap_startup_wait_time = 1800
 
 parser = argparse.ArgumentParser(description="Collect mlxlink and NIC stats")
-parser.add_argument("--IB", action="store_true",
-                    help="Parse `rdma link` with IB-capable pattern; if no netdev, use lid_* as key")
+parser.add_argument(
+    "--IB",
+    action="store_true",
+    help="Parse `rdma link` with IB-capable pattern; if no netdev, use lid_* as key",
+)
+parser.add_argument(
+    "--debug",
+    action="store_true",
+    help="Enable debug output for mst parsing and rdma link parsing",
+)
 args = parser.parse_args()
 
 data = {}
 
+def dprint(msg: str):
+    if args.debug:
+        print(msg)
+
 # Hostname
 hostname = socket.gethostname()
-data['hostname'] = hostname
+data["hostname"] = hostname
 
 # Uptime
 cmd = "uptime -s"
-output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+output = subprocess.run(
+    cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+)
 date_str = output.stdout.strip()
-uptime_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-data['uptime'] = date_str
+uptime_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
+data["uptime"] = date_str
+dprint(f"[DEBUG] Uptime: {date_str}")
 
 # RDMA link info
 cmd = "rdma link"
-output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+dprint(f"[DEBUG] Running: {cmd}")
+output = subprocess.run(
+    cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+)
 if output.returncode != 0:
     print("Error getting rdma info")
     sys.exit(1)
 
-# Regex selection
+dprint("[DEBUG] rdma link output:")
+if args.debug:
+    print(output.stdout)
+
+# Regex selection for rdma link
 if args.IB:
     rdma_link_pat = re.compile(
         r"""^link\s+
@@ -50,13 +72,19 @@ if args.IB:
             \s+physical_state\s+(?P<physical_state>\w+)
             (?:\s+netdev\s+(?P<netdev>\S+))?
             \s*$""",
-        re.X
+        re.X,
     )
+    dprint("[DEBUG] Using IB rdma_link pattern")
 else:
-    rdma_link_pat = re.compile(r"(mlx5_\d+)/\d+:? state (\w+) physical_state (\w+) netdev (\w+)")
+    rdma_link_pat = re.compile(
+        r"(mlx5_\d+)/\d+:? state (\w+) physical_state (\w+) netdev (\w+)"
+    )
+    dprint("[DEBUG] Using non-IB rdma_link pattern")
 
 rdma_dict = {}
 for line in output.stdout.splitlines():
+    if args.debug:
+        print(f"[DEBUG] rdma line: {line!r}")
     m = rdma_link_pat.search(line)
     if not m:
         continue
@@ -65,36 +93,48 @@ for line in output.stdout.splitlines():
         iface = m.group("iface")
         netdev = m.group("netdev")
         lid = m.group("lid")
-        # Use netdev if present, else lid_* as key
         key = netdev if netdev else (f"lid_{lid}" if lid else None)
+        dprint(f"[DEBUG] rdma match IB: iface={iface}, netdev={netdev}, lid={lid}, key={key}")
         if key:
             rdma_dict[key] = iface
     else:
-        rdma_dict[m.group(4)] = m.group(1)
+        iface = m.group(1)
+        netdev = m.group(4)
+        dprint(f"[DEBUG] rdma match non-IB: iface={iface}, netdev={netdev}")
+        rdma_dict[netdev] = iface
 
 print("=== RDMA LINK MAP ===")
 for k, v in rdma_dict.items():
     print(f"{k} -> {v}")
-data['rdma_link'] = rdma_dict
+data["rdma_link"] = rdma_dict
 
 # Detect link flaps from dmesg
 link_dict = {}
 cmd = "dmesg -T | grep -E 'mlx5_'"
-output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+dprint(f"[DEBUG] Running: {cmd}")
+output = subprocess.run(
+    cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+)
 for line in output.stdout.splitlines():
     if "mlx5_" in line and "link down" in line.lower():
+        dprint(f"[DEBUG] dmesg link-down line: {line!r}")
         dmesg_pat = re.compile(
             r"\[(\w{3} \w{3}\s+\d{1,2} \d{2}:\d{2}:\d{2} \d{4})\].*?\b(\S+): Link (\w+)"
         )
         m = dmesg_pat.search(line)
         if not m:
+            dprint("[DEBUG] dmesg pattern did not match this line")
             continue
 
         link_flap_time = datetime.strptime(m.group(1), "%a %b %d %H:%M:%S %Y")
         netdev_name = m.group(2)
+        link_status = m.group(3)
+        dprint(
+            f"[DEBUG] Parsed dmesg: time={link_flap_time}, netdev={netdev_name}, status={link_status}"
+        )
 
-        # Only map when we have a netdev-based key
         if netdev_name not in rdma_dict:
+            dprint(f"[DEBUG] netdev {netdev_name} not in rdma_dict, skipping")
             continue
 
         mlx_interface = rdma_dict[netdev_name]
@@ -104,39 +144,87 @@ for line in output.stdout.splitlines():
                 if mlx_interface not in link_dict:
                     link_dict[mlx_interface] = {
                         "last_flap_time": link_flap_time.strftime("%Y-%m-%d %H:%M:%S"),
-                        "flap_count": 1
+                        "flap_count": 1,
                     }
                 else:
                     link_dict[mlx_interface]["flap_count"] += 1
-                    link_dict[mlx_interface]["last_flap_time"] = link_flap_time.strftime("%Y-%m-%d %H:%M:%S")
+                    link_dict[mlx_interface]["last_flap_time"] = link_flap_time.strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
 
-data['link_flaps'] = link_dict
+data["link_flaps"] = link_dict
 
 # System serial number
 cmd = "dmidecode -s system-serial-number"
-output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-data['serial_number'] = output.stdout.strip()
+dprint(f"[DEBUG] Running: {cmd}")
+output = subprocess.run(
+    cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+)
+data["serial_number"] = output.stdout.strip()
+dprint(f"[DEBUG] Serial number: {data['serial_number']!r}")
 
 # MST status
 mst_cmd = "mst status -v"
-mst_output = subprocess.run(mst_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-pattern = r".*\s+.*\s+(\S+)\s+(\S+)\s+\S+\s+\d+"
+dprint(f"[DEBUG] Running: {mst_cmd}")
+mst_output = subprocess.run(
+    mst_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+)
+
+if args.debug:
+    print("=== RAW MST STATUS -V OUTPUT ===")
+    print(mst_output.stdout)
+
 mst_dict = {}
+
+# Robust line-based parsing:
+#  - find mlx5_N on the line
+#  - to the left of it, find nearest PCI-like token:
+#      0c:00.0 or 0000:03:00.0
+pci_pattern = re.compile(r"(?:[0-9A-Fa-f]{4}:)?[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}\.[0-7]")
+rdma_pattern = re.compile(r"mlx5_\d+")
+
 for line in mst_output.stdout.splitlines():
-    m = re.search(pattern, line)
-    if m:
-        mst_dict[m.group(1)] = m.group(2)
+    if args.debug:
+        print(f"[DEBUG] MST line: {line!r}")
+
+    if "mlx5_" not in line:
+        dprint("[DEBUG]   -> no mlx5_ in line, skip")
+        continue
+
+    rdma_match = rdma_pattern.search(line)
+    if not rdma_match:
+        dprint("[DEBUG]   -> rdma_pattern did not match, skip")
+        continue
+    rdma = rdma_match.group(0)
+    dprint(f"[DEBUG]   -> rdma_match: {rdma!r} at [{rdma_match.start()}:{rdma_match.end()}]")
+
+    left_text = line[:rdma_match.start()]
+    pci_match = None
+    for m in pci_pattern.finditer(left_text):
+        pci_match = m
+    if not pci_match:
+        dprint("[DEBUG]   -> no PCI match to the left of rdma, skip")
+        continue
+
+    pci = pci_match.group(0)
+    dprint(f"[DEBUG]   -> pci_match: {pci!r} at [{pci_match.start()}:{pci_match.end()}]")
+
+    mst_dict[pci] = rdma
+
 print("=== MST STATUS MAP ===")
 for k, v in mst_dict.items():
     print(f"{k} -> {v}")
-data['mst_status'] = mst_dict
+data["mst_status"] = mst_dict
 
 # mlxlink info
 for key in mst_dict:
     print(f"Collecting mlxlink info for {key}: {mst_dict[key]}")
     mlx5_inter = mst_dict[key]
     cmd = f"mlxlink -d {mlx5_inter} -m -e -c --rx_fec_histogram --show_histogram --json"
-    output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    dprint(f"[DEBUG] Running: {cmd}")
+    output = subprocess.run(
+        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+    )
     if output.returncode != 0:
         print(f"cmd: {cmd}, returncode: {output.returncode}")
         print("Error getting mlxlink info")
@@ -146,7 +234,7 @@ for key in mst_dict:
         print(f"Error decoding json: {e}")
         print(f"Output: {output.stdout}")
 
-# ethtool stats: skip IB lid_* entries
+# ETHTOOL stats: skip IB lid_* entries
 print("=== ETHTOOL COLLECTION ===")
 for netdev in rdma_dict:
     print(f"Key: {netdev}, Value: {rdma_dict[netdev]}")
@@ -154,23 +242,26 @@ for netdev in rdma_dict:
         print(f"Skipping ethtool for {netdev} (IB LID entry)")
         continue
     cmd = f"ethtool -S {netdev}"
-    output = subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    dprint(f"[DEBUG] Running: {cmd}")
+    output = subprocess.run(
+        cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+    )
     if output.returncode != 0:
         print(f"cmd: {cmd}, returncode: {output.returncode}")
         print("Error getting ethtool info")
         continue
     ethtool_dict = {}
     for line in output.stdout.splitlines():
-        if ':' in line:
-            k, v = line.split(':', 1)
-            if not re.match(r'^(tx[0-9]+_|rx[0-9]+_|ch[0-9]+_)', k.strip()):
+        if ":" in line:
+            k, v = line.split(":", 1)
+            if not re.match(r"^(tx[0-9]+_|rx[0-9]+_|ch[0-9]+_)", k.strip()):
                 ethtool_dict[k.strip()] = v.strip()
     data[netdev] = ethtool_dict
 
 # Output JSON
 current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 outfile = f"mlxlink_info_min_{data['hostname']}_{current_time}.json"
-with open(outfile, 'w') as f:
+with open(outfile, "w") as f:
     json.dump(data, f, indent=4)
 print(f"Saved: {outfile}")
 
