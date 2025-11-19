@@ -91,6 +91,7 @@ for line in output.stdout.splitlines():
 
     if args.IB:
         iface = m.group("iface")
+        iface = iface.split("/")[0]
         netdev = m.group("netdev")
         lid = m.group("lid")
         key = netdev if netdev else (f"lid_{lid}" if lid else None)
