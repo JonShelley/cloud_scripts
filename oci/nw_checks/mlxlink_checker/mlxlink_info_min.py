@@ -7,6 +7,8 @@ import socket
 import re
 import argparse
 from datetime import datetime
+import urllib.request
+import urllib.error
 
 flap_duration_threshold = 86400
 flap_startup_wait_time = 1800
@@ -43,6 +45,51 @@ date_str = output.stdout.strip()
 uptime_date = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S")
 data["uptime"] = date_str
 dprint(f"[DEBUG] Uptime: {date_str}")
+
+# Collect IPv4/IPv6 for eth0 (Python equivalent of provided bash)
+ipv4_addr = None
+ipv6_addr = None
+try:
+    ip_cmd = "ip addr show dev eth0"
+    dprint(f"[DEBUG] Running: {ip_cmd}")
+    ip_out = subprocess.run(
+        ip_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+    )
+    for line in ip_out.stdout.splitlines():
+        if ipv4_addr is None and "inet " in line:
+            m = re.search(r"inet\s+([0-9.]+)/", line)
+            if m:
+                ipv4_addr = m.group(1)
+        if ipv6_addr is None and "inet6" in line:
+            m6 = re.search(r"inet6\s+([0-9A-Fa-f:]+)/", line)
+            if m6:
+                ipv6_addr = m6.group(1)
+        if ipv4_addr is not None and ipv6_addr is not None:
+            break
+except Exception as e:
+    dprint(f"[DEBUG] Error collecting IP addresses: {e}")
+
+data["ipv4"] = ipv4_addr
+data["ipv6"] = ipv6_addr
+dprint(f"[DEBUG] IPv4: {ipv4_addr}, IPv6: {ipv6_addr}")
+
+# Fetch OCI instance metadata and extract instance id
+instance_id = None
+try:
+    req = urllib.request.Request(
+        "http://169.254.169.254/opc/v2/instance",
+        headers={"Authorization": "Bearer Oracle"},
+        method="GET",
+    )
+    with urllib.request.urlopen(req, timeout=2) as resp:
+        body = resp.read().decode("utf-8")
+        meta = json.loads(body)
+        instance_id = meta.get("id")
+except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, ValueError, Exception) as e:
+    dprint(f"[DEBUG] Error fetching instance metadata: {e}")
+
+data["instance_id"] = instance_id
+dprint(f"[DEBUG] Instance ID: {instance_id}")
 
 # RDMA link info
 cmd = "rdma link"
@@ -265,4 +312,3 @@ outfile = f"mlxlink_info_min_{data['hostname']}_{current_time}.json"
 with open(outfile, "w") as f:
     json.dump(data, f, indent=4)
 print(f"Saved: {outfile}")
-
