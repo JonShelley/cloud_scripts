@@ -219,6 +219,8 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp):
             mpirun_command = f"mpirun"
             if args.no_ucx == False:
                 mpirun_command += f" -mca pml ucx"
+                mpirun_command += f" -x UCX_TLS=tcp"
+                mpirun_command += f" -x UCX_NET_DEVICES=eth0"
             mpirun_command += f" -mca coll ^hcoll"
             mpirun_command += f" -mca plm_rsh_args '-p {args.ssh_port}'"
             mpirun_command += f" -mca btl_tcp_if_include eth0"
@@ -229,8 +231,6 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp):
             mpirun_command += f" --bind-to numa"
             mpirun_command += f" -x RX_QUEUE_LEN=8192"
             mpirun_command += f" -x IB_RX_QUEUE_LEN=8192"
-            mpirun_command += f" -x UCX_TLS=tcp"
-            mpirun_command += f" -x UCX_NET_DEVICES=eth0"
             mpirun_command += f" -x HCOLL_ENABLE_MCAST_ALL=0"
             mpirun_command += f" -x coll_hcoll_enable=0"
             mpirun_command += f" -x NCCL_CUMEM_ENABLE=0"
@@ -255,11 +255,27 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp):
             if args.nccl_algo != "default":
                 mpirun_command += f" -x NCCL_ALGO={a}"
             # HCA maps by node shape
-            if args.node_shape == "h200":
+            if args.node_shape in ["h200", "b200"]:
                 mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_9,mlx5_10,mlx5_11'"
             elif args.node_shape == "mi300x":
                 mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_2,mlx5_3,mlx5_4,mlx5_5,mlx5_7,mlx5_8,mlx5_9'"
                 mpirun_command += f" -x NCCL_PXN_DISABLE=0"
+            elif args.node_shape == "mi355x":
+                mpirun_command += f" -x NCCL_IB_HCA=ionic_0,ionic_2,ionic_3,ionic_4,ionic_5,ionic_7,ionic_8,ionic_9"
+                mpirun_command += f" -x NCCL_PXN_DISABLE=0"
+                mpirun_command += f" -x NCCL_GDR_FLUSH_DISABLE=1"
+                mpirun_command += f" -x RCCL_GDR_FLUSH_GPU_MEM_NO_RELAXED_ORDERING=0"
+                mpirun_command += f" -x RCCL_IB_ABORT_ON_ERROR=1"
+                mpirun_command += f" -x NCCL_IB_USE_INLINE=1"
+                mpirun_command += f" -x IONIC_LOCKFREE=all"
+                mpirun_command += f" -x NCCL_NET_PLUGIN=librccl-anp.so"
+                mpirun_command += f" -x NCCL_DMABUF_ENABLE=1"
+                mpirun_command += f" -x NCCL_IB_FIFO_TC=185"
+                mpirun_command += f" -x HSA_NO_SCRATCH_RECLAIM=1"
+                mpirun_command += f" -x NCCL_MAX_P2P_NCHANNELS=32"
+                mpirun_command += f" -x NCCL_NET_OPTIONAL_RECV_COMPLETION=0"
+                mpirun_command += f" -x NCCL_IB_GID_INDEX=1"
+                mpirun_command += f" -x NCCL_SOCKET_IFNAME=eth0"
             elif args.node_shape == "h100":
                 mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_1,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_7,mlx5_8,mlx5_9,mlx5_10,mlx5_12,mlx5_13,mlx5_14,mlx5_15,mlx5_16,mlx5_17'"
             else:
@@ -847,7 +863,7 @@ if __name__ == "__main__":
     parser.add_argument('--good_hosts', type=str, help='List of good hosts')
     parser.add_argument('--nccl_qps_per_connection', type=int, required=False, help='NCCL IB QPS per connection')
     parser.add_argument('--output_dir', type=str, required=False, help='Output directory for the results')
-    parser.add_argument('--node_shape', type=str, required=False, default='h100', help='Node shape (h200 or h100)')
+    parser.add_argument('--node_shape', type=str, required=False, default='h100', help='Node shape (h100, h200, b200, mi300x)')
     parser.add_argument('--net_plugin', type=str, required=False, default='none', help='path to the NCCL net plugin to use')
     parser.add_argument('--timeout', type=int, required=False, default=300, help='Timeout for the command in seconds')
     parser.add_argument('--rocm', action='store_true', help='Use ROCm for the NCCL tests')
