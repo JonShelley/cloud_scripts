@@ -183,7 +183,11 @@ def cleanup_orphans_parallel(hostfile, nccl_test, args):
 
 def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp):
     logging.debug(f"Running on {HPJ} using mpirun for ({hostfile})")
-    NP = int(HPJ) * 8
+    if args.node_shape == "gb200v3":
+        NP = int(HPJ) * 4
+    else:
+        NP = int(HPJ) * 8
+
     logging.debug(f"HPJ: {HPJ}, Running on {NP} GPUs using mpirun for ({hostfile})")
 
     run_type = get_nccl_run_type(args)
@@ -225,19 +229,22 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp):
             mpirun_command += f" -mca plm_rsh_args '-p {args.ssh_port}'"
             mpirun_command += f" -mca btl_tcp_if_include eth0"
             mpirun_command += f" --allow-run-as-root"
-            mpirun_command += f" -N 8"
-            mpirun_command += f" -np {NP}"
-            mpirun_command += f" -hostfile {hostfile}"
-            mpirun_command += f" --bind-to numa"
-            mpirun_command += f" -x RX_QUEUE_LEN=8192"
-            mpirun_command += f" -x IB_RX_QUEUE_LEN=8192"
-            mpirun_command += f" -x HCOLL_ENABLE_MCAST_ALL=0"
-            mpirun_command += f" -x coll_hcoll_enable=0"
-            mpirun_command += f" -x NCCL_CUMEM_ENABLE=0"
             mpirun_command += f" -x NCCL_IB_TIMEOUT=22"
             mpirun_command += f" -x NCCL_IB_SL=0"
             mpirun_command += f" -x NCCL_IB_TC=41"
             mpirun_command += f" -x NCCL_IB_GID_INDEX=3"
+
+            if args.node_shape == "gb200v3":
+                mpirun_command += f" -N 4"
+            else:
+                mpirun_command += f" -N 8"
+                mpirun_command += f" -x RX_QUEUE_LEN=8192"
+                mpirun_command += f" -x IB_RX_QUEUE_LEN=8192"
+                mpirun_command += f" -x HCOLL_ENABLE_MCAST_ALL=0"
+                mpirun_command += f" -x coll_hcoll_enable=0"
+
+            mpirun_command += f" -np {NP}"
+            mpirun_command += f" -hostfile {hostfile}"
             if args.nccl_debug:
                 mpirun_command += f" -x NCCL_DEBUG=INFO"
             else:
@@ -256,6 +263,7 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp):
                 mpirun_command += f" -x NCCL_ALGO={a}"
             # HCA maps by node shape
             if args.node_shape in ["h200", "b200"]:
+                mpirun_command += f" -x NCCL_CUMEM_ENABLE=1"
                 mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_9,mlx5_10,mlx5_11'"
             elif args.node_shape == "mi300x":
                 mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_2,mlx5_3,mlx5_4,mlx5_5,mlx5_7,mlx5_8,mlx5_9'"
@@ -276,8 +284,17 @@ def run_mpi_command(args, dargs, hostfile, HPJ, date_stamp):
                 mpirun_command += f" -x NCCL_NET_OPTIONAL_RECV_COMPLETION=0"
                 mpirun_command += f" -x NCCL_IB_GID_INDEX=1"
                 mpirun_command += f" -x NCCL_SOCKET_IFNAME=eth0"
+            elif args.node_shape == "gb200v3":
+                mpirun_command += f" --bind-to none"
+                mpirun_command += f" -x NCCL_CUMEM_ENABLE=1"
+                mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_1,mlx5_2,mlx5_3,mlx5_5,mlx5_6,mlx5_7,mlx5_8'"
+                mpirun_command += f" -x NCCL_NET_GDR_C2C=1"
+                mpirun_command += f" -x NCCL_MNNVL_ENABLE=1"
             elif args.node_shape == "h100":
+                mpirun_command += f" -x NCCL_CUMEM_ENABLE=1"
                 mpirun_command += f" -x NCCL_IB_HCA='=mlx5_0,mlx5_1,mlx5_3,mlx5_4,mlx5_5,mlx5_6,mlx5_7,mlx5_8,mlx5_9,mlx5_10,mlx5_12,mlx5_13,mlx5_14,mlx5_15,mlx5_16,mlx5_17'"
+            elif args.node_shape != "gb200v3":
+                mpirun_command += f" --bind-to numa"
             else:
                 logging.error(f"Unknown node shape: {args.node_shape}")
                 sys.exit(1)
